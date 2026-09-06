@@ -7,7 +7,7 @@ inputs:
   archives-base-name:
     description: The archives base name the jars are built under (stonecutter archives_base_name).
     required: false
-    default: example-mod
+    default: free-my-hotbar
   display-version:
     description: Display version string used in the jar name (e.g. "mc-1.21.11").
     required: true

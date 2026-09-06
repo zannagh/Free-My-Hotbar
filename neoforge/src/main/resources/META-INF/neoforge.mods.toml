@@ -3,26 +3,26 @@ loaderVersion="[1,)"
 license="MIT"
 
 [[mods]]
-modId="example_mod"
+modId="free_my_hotbar"
 version="${version}"
-displayName="Example Mod"
+displayName="Free My Hotbar"
 description="A Minecraft mod."
 authors="Your Name"
 
 [[mixins]]
-config="example-mod.mixins.json"
+config="free-my-hotbar.mixins.json"
 
 [[mixins]]
-config="example-mod.client.mixins.json"
+config="free-my-hotbar.client.mixins.json"
 
-[[dependencies."example_mod"]]
+[[dependencies."free_my_hotbar"]]
 modId="neoforge"
 type="required"
 versionRange="[${neoforge_version},)"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies."example_mod"]]
+[[dependencies."free_my_hotbar"]]
 modId="minecraft"
 type="required"
 versionRange="${minecraft_version}"

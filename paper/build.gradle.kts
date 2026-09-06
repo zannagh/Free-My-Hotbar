@@ -8,11 +8,11 @@ plugins {
 val semVer = findProperty("semVer")?.toString()?.takeIf { it.isNotEmpty() } ?: "0.0.1-preview.0"
 val displayVersion = "paper"
 
-group = "com.example.examplemod"
+group = "io.github.zannagh.freemyhotbar"
 version = "$semVer+$displayVersion"
 
 base {
-    archivesName.set("example-mod-paper")
+    archivesName.set("free-my-hotbar-paper")
 }
 
 repositories {

@@ -1,9 +1,0 @@
-{
-  "required": true,
-  "package": "com.example.examplemod.mixin.client",
-  "compatibilityLevel": "JAVA_${java_version}",
-  "client": [],
-  "injectors": {
-    "defaultRequire": 1
-  }
-}

@@ -12,7 +12,7 @@
 #   CurseForge -> secret CURSEFORGE_TOKEN   + variable CURSEFORGE_PROJECT_ID
 #
 # Optional variables: GAME_VERSIONS (default 1.21.11), DISPLAY_VERSION
-# (default mc-1.21.11), ARCHIVES_BASE (default example-mod).
+# (default mc-1.21.11), ARCHIVES_BASE (default: the repo name).
 # =============================================================================
 name: Publish Existing Release
 
@@ -177,7 +177,7 @@ jobs:
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || 'example-mod' }}
+          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
           display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.21.11' }}
           mod-version: ${{ needs.prepare.outputs.mod_version }}
           is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
@@ -237,7 +237,7 @@ jobs:
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || 'example-mod' }}
+          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
           display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.21.11' }}
           mod-version: ${{ needs.prepare.outputs.mod_version }}
           is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}

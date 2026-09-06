@@ -38,7 +38,7 @@ neoForge {
     }
 
     mods {
-        register("example_mod") {
+        register("free_my_hotbar") {
             sourceSet(sourceSets.main.get())
             sourceSet(clientSourceSet)
         }

@@ -2,7 +2,7 @@
 
 A GitHub **template repository** for building a multi-loader Minecraft mod. One codebase compiles for **Fabric** and **NeoForge** via [Stonecutter](https://stonecutter.kikugie.dev/), with an optional [PaperMC](https://papermc.io/) server plugin, a plain-JVM smoke-test suite, and CI wired for building, code scanning, and (dormant) publishing to Modrinth and CurseForge.
 
-Create your own repository from this one, and a bootstrap step rewrites the placeholder identity into your mod's name. Nothing here carries a personal namespace — the template ships with neutral placeholders (`example-mod` / `com.example.examplemod` / `ExampleMod`) that the rename step replaces.
+Create your own repository from this one, and a bootstrap step rewrites the placeholder identity into your mod's name. Nothing here carries a personal namespace — the template ships with neutral placeholders (`free-my-hotbar` / `io.github.zannagh.freemyhotbar` / `FreeMyHotbar`) that the rename step replaces.
 
 ## What you get
 
@@ -153,7 +153,7 @@ Optional variables (with defaults tuned for the shipped `1.21.11` template):
 | --- | --- | --- |
 | `GAME_VERSIONS` | `1.21.11` | Minecraft versions to tag on the published files |
 | `DISPLAY_VERSION` | `mc-1.21.11` | The `+<display>` segment in the jar names |
-| `ARCHIVES_BASE` | `example-mod` | Stonecutter `archives_base_name` |
+| `ARCHIVES_BASE` | `free-my-hotbar` | Stonecutter `archives_base_name` |
 
 - **`publish.yml`** runs on a **published GitHub Release**, or via manual dispatch (which defaults to a `dry_run` that resolves metadata without uploading). It builds the jars, attaches them to the release, and publishes to any configured platform. With nothing configured it prints exactly which secrets/vars to set and exits cleanly.
 - **`publish-existing-release.yml`** is a dispatch-only, admin-restricted job that re-publishes jars already attached to an existing release (chosen by tag) to Modrinth and/or CurseForge **without rebuilding**.

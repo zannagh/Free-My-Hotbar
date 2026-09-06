@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "example-mod",
+  "id": "free-my-hotbar",
   "version": "${version}",
-  "name": "Example Mod",
+  "name": "Free My Hotbar",
   "description": "A Minecraft mod.",
   "authors": [
     {
@@ -14,20 +14,20 @@
     "sources": ""
   },
   "license": "MIT",
-  "icon": "assets/example-mod/icon.png",
+  "icon": "assets/free-my-hotbar/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
-      "com.example.examplemod.fabric.ExampleModFabric"
+      "io.github.zannagh.freemyhotbar.fabric.FreeMyHotbarFabric"
     ],
     "client": [
-      "com.example.examplemod.fabric.ExampleModClientFabric"
+      "io.github.zannagh.freemyhotbar.fabric.FreeMyHotbarClientFabric"
     ]
   },
   "mixins": [
-    "example-mod.mixins.json",
+    "free-my-hotbar.mixins.json",
     {
-      "config": "example-mod.client.mixins.json",
+      "config": "free-my-hotbar.client.mixins.json",
       "environment": "client"
     }
   ],

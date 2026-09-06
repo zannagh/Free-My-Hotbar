@@ -22,7 +22,7 @@ import org.tomlj.TomlTable;
 /**
  * Validates the loader metadata shipped in the template exactly as Fabric / NeoForge would read
  * it: the JSON must parse and the TOML must parse, and each must carry the mod identity the two
- * loaders expect (dashed {@code example-mod} for Fabric/resources, underscored {@code example_mod}
+ * loaders expect (dashed {@code free-my-hotbar} for Fabric/resources, underscored {@code free_my_hotbar}
  * for NeoForge). These invariants stay TRUE for any renamed mod once the setup script rewrites the
  * placeholders, because they assert structure plus the shipped placeholder values.
  */
@@ -33,9 +33,9 @@ class ModMetadataSmokeTest {
     private static final Path REPO_ROOT = Paths.get(
             System.getProperty("smoke.repo.root", System.getProperty("user.dir")));
 
-    private static final String FABRIC_MOD_ID = "example-mod";
-    private static final String NEOFORGE_MOD_ID = "example_mod";
-    private static final String BASE_PACKAGE = "com.example.examplemod";
+    private static final String FABRIC_MOD_ID = "free-my-hotbar";
+    private static final String NEOFORGE_MOD_ID = "free_my_hotbar";
+    private static final String BASE_PACKAGE = "io.github.zannagh.freemyhotbar";
 
     @Test
     @DisplayName("fabric.mod.json is valid JSON with the expected id and required keys")
@@ -71,7 +71,7 @@ class ModMetadataSmokeTest {
     @Test
     @DisplayName("common mixin config is valid JSON with the expected package")
     void commonMixinsJsonIsValid() throws IOException {
-        JsonObject json = readJson("common/src/main/resources/example-mod.mixins.json");
+        JsonObject json = readJson("common/src/main/resources/free-my-hotbar.mixins.json");
 
         assertEquals(BASE_PACKAGE + ".mixin", json.get("package").getAsString(),
                 "the common mixin package must sit under the mod's base package");
@@ -81,7 +81,7 @@ class ModMetadataSmokeTest {
     @Test
     @DisplayName("client mixin config is valid JSON with the expected package")
     void clientMixinsJsonIsValid() throws IOException {
-        JsonObject json = readJson("common/src/client/resources/example-mod.client.mixins.json");
+        JsonObject json = readJson("common/src/client/resources/free-my-hotbar.client.mixins.json");
 
         assertEquals(BASE_PACKAGE + ".mixin.client", json.get("package").getAsString(),
                 "the client mixin package must sit under the mod's base mixin package");

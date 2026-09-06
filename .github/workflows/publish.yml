@@ -17,7 +17,7 @@
 # Optional variables (sensible defaults for the shipped 1.21.11 template):
 #   GAME_VERSIONS    Minecraft versions to tag, newline- or space-separated.  Default: 1.21.11
 #   DISPLAY_VERSION  The "+<display>" segment in the jar names.               Default: mc-1.21.11
-#   ARCHIVES_BASE    stonecutter archives_base_name.                          Default: example-mod
+#   ARCHIVES_BASE    stonecutter archives_base_name.                          Default: the repo name
 #
 # Secrets are set under Settings > Secrets and variables > Actions > Secrets;
 # variables under the neighbouring Variables tab.
@@ -205,7 +205,7 @@ jobs:
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || 'example-mod' }}
+          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
           display-version: ${{ needs.build.outputs.display_version }}
           mod-version: ${{ needs.build.outputs.mod_version }}
           is-prerelease: ${{ needs.build.outputs.is_prerelease }}
@@ -260,7 +260,7 @@ jobs:
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || 'example-mod' }}
+          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
           display-version: ${{ needs.build.outputs.display_version }}
           mod-version: ${{ needs.build.outputs.mod_version }}
           is-prerelease: ${{ needs.build.outputs.is_prerelease }}

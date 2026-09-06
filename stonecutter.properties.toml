@@ -1,6 +1,6 @@
 # Global properties — identity shared across every loader/version variant.
-maven_group = "com.example.examplemod"
-archives_base_name = "example-mod"
+maven_group = "io.github.zannagh.freemyhotbar"
+archives_base_name = "free-my-hotbar"
 loader_version = "0.18.4"
 
 # ──────────────────────────────────────────────────────────────────────────────
