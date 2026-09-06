@@ -1,0 +1,50 @@
+# Smoke test suite.
+#
+# Runs the JUnit `smokeTest` task, kept separate from the main `build` job so a smoke
+# regression is easy to spot and so the (potentially slower) smoke suite does not block
+# the fast compile/unit gate.
+name: Smoke
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The `smokeTest` task is provided by the smoke test suite. It is a plain Gradle task,
+      # so this stays valid even before the suite is wired up (the task simply no-ops/fails
+      # loudly if absent, which is the signal you want).
+      - name: Run smoke tests
+        run: ./gradlew smokeTest --stacktrace

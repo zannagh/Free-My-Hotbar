@@ -1,0 +1,63 @@
+# Build validation for pushes and pull requests.
+# Ensures the multi-loader project compiles and produces the Fabric + NeoForge jars.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history so any version-from-git tooling can resolve tags.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # setup-gradle handles the Gradle user-home cache and validates the wrapper checksum.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # `build` compiles + tests every active loader variant (Fabric and NeoForge) and produces
+      # their jars under <loader>/versions/*/build/libs/.
+      - name: Build
+        run: ./gradlew build --stacktrace
+
+      - name: Upload loader jars
+        uses: actions/upload-artifact@v7
+        with:
+          name: mod-jars
+          # The distributable loader jars only - exclude sources jars and the intermediate
+          # `common` module jars (which are bundled into the loader jars).
+          path: |
+            fabric/versions/**/build/libs/*.jar
+            neoforge/versions/**/build/libs/*.jar
+            !**/*-sources.jar
+          if-no-files-found: warn

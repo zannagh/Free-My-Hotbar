@@ -1,0 +1,266 @@
+# Publish Existing Release
+# =============================================================================
+# Manually re-publish the jars already attached to a GitHub release/prerelease to
+# Modrinth and/or CurseForge WITHOUT rebuilding. Assets are pulled from the
+# release; version metadata is derived from the tag and jar names.
+#
+# DORMANT BY DEFAULT: dispatch-only, restricted to repository admins, and every
+# external-publish job is gated on the platform being configured (same secrets/
+# vars as publish.yml):
+#
+#   Modrinth   -> secret MODRINTH_TOKEN     + variable MODRINTH_PROJECT_ID
+#   CurseForge -> secret CURSEFORGE_TOKEN   + variable CURSEFORGE_PROJECT_ID
+#
+# Optional variables: GAME_VERSIONS (default 1.21.11), DISPLAY_VERSION
+# (default mc-1.21.11), ARCHIVES_BASE (default example-mod).
+# =============================================================================
+name: Publish Existing Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to publish (e.g. v1.0.0).'
+        required: true
+        type: string
+      platforms:
+        description: 'Which platforms to publish to.'
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - modrinth
+          - curseforge
+      dry_run:
+        description: 'Preview only - resolve metadata but do not upload.'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: publish-existing-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================================================
+  # PREFLIGHT - which platforms are configured.
+  # ===========================================================================
+  check-config:
+    name: Check publish configuration
+    runs-on: ubuntu-latest
+    outputs:
+      modrinth: ${{ steps.cfg.outputs.modrinth }}
+      curseforge: ${{ steps.cfg.outputs.curseforge }}
+    steps:
+      - name: Resolve configuration
+        id: cfg
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+        run: |
+          MODRINTH=false
+          CURSEFORGE=false
+          if [[ -n "$MODRINTH_TOKEN" && -n "$MODRINTH_PROJECT_ID" ]]; then MODRINTH=true; fi
+          if [[ -n "$CURSEFORGE_TOKEN" && -n "$CURSEFORGE_PROJECT_ID" ]]; then CURSEFORGE=true; fi
+          echo "modrinth=$MODRINTH" >> "$GITHUB_OUTPUT"
+          echo "curseforge=$CURSEFORGE" >> "$GITHUB_OUTPUT"
+          if [[ "$MODRINTH" != "true" && "$CURSEFORGE" != "true" ]]; then
+            echo "::notice::No publish platform is configured - nothing will be published. Set MODRINTH_TOKEN + MODRINTH_PROJECT_ID and/or CURSEFORGE_TOKEN + CURSEFORGE_PROJECT_ID in the repo settings."
+          fi
+
+  # ===========================================================================
+  # PREPARE - admin gate, download release assets, resolve version metadata.
+  # ===========================================================================
+  prepare:
+    name: Prepare release assets
+    needs: [check-config]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mod_version: ${{ steps.release.outputs.mod_version }}
+      is_prerelease: ${{ steps.release.outputs.is_prerelease }}
+      changelog: ${{ steps.body.outputs.content }}
+    steps:
+      - name: Verify actor is a repository admin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PERM=$(gh api "repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission" --jq '.permission')
+          echo "Actor '${{ github.actor }}' has repository permission: $PERM"
+          if [[ "$PERM" != "admin" ]]; then
+            echo "::error::Only repository admins/owners may run this workflow (actor has '$PERM')."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p release-assets
+          gh release download "${{ inputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern '*.jar' \
+            --dir release-assets
+          echo "Downloaded assets:"
+          ls -1 release-assets
+
+      - name: Resolve release info
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          MOD_VERSION="${TAG#v}"
+          IS_PRERELEASE=$(gh release view "$TAG" --repo "${{ github.repository }}" --json isPrerelease --jq '.isPrerelease')
+          echo "mod_version=$MOD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Mod version: $MOD_VERSION (prerelease: $IS_PRERELEASE)"
+
+      - name: Read release body
+        id: body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(gh release view "${{ inputs.tag }}" --repo "${{ github.repository }}" --json body --jq '.body')
+          {
+            echo "content<<RELEASE_BODY_EOF"
+            echo "$BODY"
+            echo "RELEASE_BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload prepared assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-assets-${{ inputs.tag }}
+          path: release-assets/*.jar
+          if-no-files-found: error
+
+  # ===========================================================================
+  # PUBLISH TO MODRINTH
+  # ===========================================================================
+  publish-modrinth:
+    name: Publish to Modrinth (${{ matrix.loader }})
+    needs: [check-config, prepare]
+    runs-on: ubuntu-latest
+    if: >-
+      needs.check-config.outputs.modrinth == 'true' &&
+      (inputs.platforms == 'both' || inputs.platforms == 'modrinth') &&
+      !inputs.dry_run
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        loader: [fabric, neoforge]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download prepared assets
+        uses: actions/download-artifact@v8
+        with:
+          name: release-assets-${{ inputs.tag }}
+          path: artifacts
+
+      - name: Prepare upload
+        id: prep
+        uses: ./.github/actions/prepare-modrinth-upload
+        with:
+          archives-base-name: ${{ vars.ARCHIVES_BASE || 'example-mod' }}
+          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.21.11' }}
+          mod-version: ${{ needs.prepare.outputs.mod_version }}
+          is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
+          artifact-path: artifacts
+          loader: ${{ matrix.loader }}
+
+      - name: Publish to Modrinth
+        if: steps.prep.outputs.found == 'true'
+        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: ${{ steps.prep.outputs.jar_path }}
+          name: ${{ steps.prep.outputs.version_name }}
+          version: ${{ steps.prep.outputs.version_number }}
+          version-type: ${{ steps.prep.outputs.version_type }}
+          loaders: |
+            ${{ matrix.loader }}
+            ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
+          game-versions: |
+            ${{ vars.GAME_VERSIONS || '1.21.11' }}
+          game-version-filter: any
+          changelog: ${{ needs.prepare.outputs.changelog }}
+          modrinth-featured: false
+          retry-attempts: 2
+          retry-delay: 10000
+
+  # ===========================================================================
+  # PUBLISH TO CURSEFORGE
+  # ===========================================================================
+  publish-curseforge:
+    name: Publish to CurseForge (${{ matrix.loader }})
+    needs: [check-config, prepare]
+    runs-on: ubuntu-latest
+    if: >-
+      needs.check-config.outputs.curseforge == 'true' &&
+      (inputs.platforms == 'both' || inputs.platforms == 'curseforge') &&
+      !inputs.dry_run
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        loader: [fabric, neoforge]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download prepared assets
+        uses: actions/download-artifact@v8
+        with:
+          name: release-assets-${{ inputs.tag }}
+          path: artifacts
+
+      - name: Prepare upload
+        id: prep
+        uses: ./.github/actions/prepare-modrinth-upload
+        with:
+          archives-base-name: ${{ vars.ARCHIVES_BASE || 'example-mod' }}
+          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.21.11' }}
+          mod-version: ${{ needs.prepare.outputs.mod_version }}
+          is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
+          artifact-path: artifacts
+          loader: ${{ matrix.loader }}
+
+      - name: Publish to CurseForge
+        if: steps.prep.outputs.found == 'true'
+        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: ${{ steps.prep.outputs.jar_path }}
+          name: ${{ steps.prep.outputs.version_name }}
+          version: ${{ steps.prep.outputs.version_number }}
+          version-type: ${{ steps.prep.outputs.version_type }}
+          loaders: |
+            ${{ matrix.loader }}
+            ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
+          game-versions: |
+            ${{ vars.GAME_VERSIONS || '1.21.11' }}
+          game-version-filter: any
+          changelog: ${{ needs.prepare.outputs.changelog }}
+          retry-attempts: 2
+          retry-delay: 10000
+          curseforge-fail-mode: warn

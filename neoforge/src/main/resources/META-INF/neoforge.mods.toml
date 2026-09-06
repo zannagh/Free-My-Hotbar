@@ -1,0 +1,30 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="example_mod"
+version="${version}"
+displayName="Example Mod"
+description="A Minecraft mod."
+authors="Your Name"
+
+[[mixins]]
+config="example-mod.mixins.json"
+
+[[mixins]]
+config="example-mod.client.mixins.json"
+
+[[dependencies."example_mod"]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies."example_mod"]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version}"
+ordering="NONE"
+side="BOTH"

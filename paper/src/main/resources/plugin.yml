@@ -1,0 +1,6 @@
+name: Example Mod
+version: '${version}'
+main: com.example.examplemod.paper.ExampleModPaper
+api-version: '1.21'
+description: Server-side companion plugin for the Example Mod template.
+folia-supported: true

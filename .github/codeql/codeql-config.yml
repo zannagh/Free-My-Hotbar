@@ -1,0 +1,14 @@
+name: "CodeQL config"
+
+# The full `security-and-quality` suite (see codeql.yml) is run, but a handful of quality
+# queries have no signal for a mixin-heavy Minecraft mod and only produce noise. Exclude
+# those by id here rather than annotating dozens of files.
+#
+# java/unused-parameter: mixin injection handlers (@Inject/@Redirect/@ModifyVariable
+#   /@ModifyArg ...) must mirror the target method signature and accept framework-supplied
+#   parameters (CallbackInfo, captured @Local values). Those parameters are legitimately
+#   unused in the handler body and cannot be removed, so every handler trips this query.
+#   If your mod uses no mixins, you can safely delete this filter.
+query-filters:
+  - exclude:
+      id: java/unused-parameter

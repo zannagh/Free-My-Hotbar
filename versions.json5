@@ -1,0 +1,16 @@
+{
+  "$schema": "https://stonecutter.kikugie.dev/settings-schema/latest.json",
+  vcs: "fabric-1.21.11",
+  branches: {
+    "common": [
+      "fabric-1.21.11:1.21.11",
+      "neoforge-1.21.11:1.21.11"
+    ],
+    "fabric": [
+      "fabric-1.21.11:1.21.11"
+    ],
+    "neoforge": [
+      "neoforge-1.21.11:1.21.11"
+    ],
+  },
+}
