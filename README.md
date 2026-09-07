@@ -1,18 +1,18 @@
 # Minecraft Mod Template
 
-A GitHub **template repository** for building a multi-loader Minecraft mod. One codebase compiles for **Fabric** and **NeoForge** via [Stonecutter](https://stonecutter.kikugie.dev/), with an optional [PaperMC](https://papermc.io/) server plugin, a plain-JVM smoke-test suite, and CI wired for building, code scanning, and (dormant) publishing to Modrinth and CurseForge.
+A GitHub **template repository** for building a multi-loader Minecraft mod. One codebase compiles for **Fabric** and **Forge** via [Stonecutter](https://stonecutter.kikugie.dev/), with an optional [PaperMC](https://papermc.io/) server plugin, a plain-JVM smoke-test suite, and CI wired for building, code scanning, and (dormant) publishing to Modrinth and CurseForge.
 
 Create your own repository from this one, and a bootstrap step rewrites the placeholder identity into your mod's name. Nothing here carries a personal namespace — the template ships with neutral placeholders (`free-my-hotbar` / `io.github.zannagh.freemyhotbar` / `FreeMyHotbar`) that the rename step replaces.
 
 ## What you get
 
-- **Multi-loader from one source**: Fabric + NeoForge (no legacy Forge), built with Stonecutter `0.9.1`.
+- **Multi-loader from one source**: Fabric + Forge (classic MinecraftForge, not NeoForge — NeoForge only exists for MC 1.20.2+), built with Stonecutter `0.9.1`.
 - **Shared `common` module**: loader-agnostic code inherited by each loader.
 - **Optional Paper plugin**: a Bukkit server-side plugin subproject you can keep or remove in one command.
 - **Smoke tests**: fast plain-JVM JUnit invariants that catch a broken project.
 - **CI out of the box**: build validation, smoke tests, CodeQL scanning, and release publishing.
 - **Convention plugins in `buildSrc/`**: build logic lives in one place, no copy-paste across loaders.
-- **Toolchain**: Java 21, Gradle wrapper `9.7.0`, one Minecraft version shipped (`1.21.11`).
+- **Toolchain**: Java 17, Gradle wrapper `9.7.0`, one Minecraft version shipped (`1.20.1`).
 
 ## Getting started
 
@@ -68,11 +68,11 @@ The script accepts one free-form `--name` and derives every form the project nee
 | --- | --- | --- |
 | Display | `My Funny Minecraft Mod` | Human-readable name |
 | Fabric id (kebab) | `my-funny-minecraft-mod` | Fabric mod id, archive base name |
-| NeoForge id (snake) | `my_funny_minecraft_mod` | NeoForge mod id |
+| Forge id (snake) | `my_funny_minecraft_mod` | Forge mod id |
 | Package segment | `myfunnyminecraftmod` | Last segment of the Java package |
 | Class base (Pascal) | `MyFunnyMinecraftMod` | Main class names |
 
-Both a kebab-case and a snake-case id exist because the loaders differ by convention: **Fabric** ids are kebab-case, **NeoForge** ids are snake_case — and NeoForge **forbids hyphens** in mod ids. The script validates the snake-case id against NeoForge's `^[a-z][a-z0-9_]{1,63}$` rule and rejects names that can't form a legal Java identifier.
+Both a kebab-case and a snake-case id exist because the loaders differ by convention: **Fabric** ids are kebab-case, **Forge** ids are snake_case — and Forge **forbids hyphens** in mod ids. The script validates the snake-case id against Forge's `^[a-z][a-z0-9_]{1,63}$` rule and rejects names that can't form a legal Java identifier.
 
 ## Project structure
 
@@ -81,7 +81,7 @@ your-mod/
 ├── buildSrc/                 Convention plugins (multiloader-common, multiloader-loader, loom-*)
 ├── common/                   Loader-agnostic shared code (main + client source sets)
 ├── fabric/                   Fabric loader entry points and resources
-├── neoforge/                 NeoForge loader entry points and resources
+├── forge/                    Forge loader entry points and resources
 ├── paper/                    Optional PaperMC/Bukkit server plugin (plain Gradle subproject)
 ├── smoke/                    Plain-JVM JUnit smoke tests (not a loader variant)
 ├── settings.gradle.kts       Stonecutter setup + subproject includes (:smoke, :paper)
@@ -114,26 +114,26 @@ It deletes the `paper/` directory, removes the `include(":paper")` wiring from `
 ./gradlew :paper:build   # Build the Paper plugin jar (if you kept it)
 ```
 
-Loader jars land under `fabric/versions/**/build/libs/` and `neoforge/versions/**/build/libs/` (sources jars excluded).
+Loader jars land under `fabric/versions/**/build/libs/` and `forge/versions/**/build/libs/` (sources jars excluded).
 
 ### Switching / adding Minecraft versions
 
 The active variant is set in `stonecutter.gradle.kts`:
 
 ```kotlin
-stonecutter active "fabric-1.21.11" /* [SC] DO NOT EDIT */
+stonecutter active "fabric-1.20.1" /* [SC] DO NOT EDIT */
 ```
 
 Stonecutter also generates tasks to switch it, e.g.:
 
 ```bash
-./gradlew "Set active project to neoforge-1.21.11"
+./gradlew "Set active project to forge-1.20.1"
 ```
 
 Then re-sync Gradle (e.g. in IntelliJ). To **add** a Minecraft version:
 
 1. Add the new version/branch entries to `versions.json5`.
-2. Add the matching `["<version>"]`, `["fabric-<version>"]`, and `["neoforge-<version>"]` blocks to `stonecutter.properties.toml`.
+2. Add the matching `["<version>"]`, `["fabric-<version>"]`, and `["forge-<version>"]` blocks to `stonecutter.properties.toml`.
 3. Re-sync Gradle.
 
 ## Publishing (dormant by default)
@@ -147,12 +147,12 @@ Enable a platform by adding its secret **and** variable in the repository's **Se
 | Modrinth | secret `MODRINTH_TOKEN` + variable `MODRINTH_PROJECT_ID` |
 | CurseForge | secret `CURSEFORGE_TOKEN` + variable `CURSEFORGE_PROJECT_ID` |
 
-Optional variables (with defaults tuned for the shipped `1.21.11` template):
+Optional variables (with defaults tuned for the shipped `1.20.1` template):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `GAME_VERSIONS` | `1.21.11` | Minecraft versions to tag on the published files |
-| `DISPLAY_VERSION` | `mc-1.21.11` | The `+<display>` segment in the jar names |
+| `GAME_VERSIONS` | `1.20.1` | Minecraft versions to tag on the published files |
+| `DISPLAY_VERSION` | `mc-1.20.1` | The `+<display>` segment in the jar names |
 | `ARCHIVES_BASE` | `free-my-hotbar` | Stonecutter `archives_base_name` |
 
 - **`publish.yml`** runs on a **published GitHub Release**, or via manual dispatch (which defaults to a `dry_run` that resolves metadata without uploading). It builds the jars, attaches them to the release, and publishes to any configured platform. With nothing configured it prints exactly which secrets/vars to set and exits cleanly.

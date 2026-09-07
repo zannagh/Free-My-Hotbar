@@ -9,7 +9,7 @@ inputs:
     required: false
     default: free-my-hotbar
   display-version:
-    description: Display version string used in the jar name (e.g. "mc-1.21.11").
+    description: Display version string used in the jar name (e.g. "mc-1.20.1").
     required: true
   mod-version:
     description: The mod version string (e.g. 1.0.0 or 1.0.0-pre.1).
@@ -21,7 +21,7 @@ inputs:
     description: Directory containing the downloaded/built jars to search.
     required: true
   loader:
-    description: The mod loader (fabric or neoforge).
+    description: The mod loader (fabric or forge).
     required: true
 
 outputs:
@@ -32,10 +32,10 @@ outputs:
     description: Path to the found JAR file.
     value: ${{ steps.find-jar.outputs.path }}
   version_number:
-    description: The publish version number (e.g. fab-mc-1.21.11-1.0.0).
+    description: The publish version number (e.g. fab-mc-1.20.1-1.0.0).
     value: ${{ steps.info.outputs.version_number }}
   version_name:
-    description: The publish display name (e.g. "[Fabric] mc-1.21.11 - 1.0.0").
+    description: The publish display name (e.g. "[Fabric] mc-1.20.1 - 1.0.0").
     value: ${{ steps.info.outputs.version_name }}
   version_type:
     description: The publish version type (release or beta).
@@ -74,7 +74,7 @@ runs:
         # Short loader prefix keeps the version string compact.
         case "$LOADER" in
           fabric)   SHORT_LOADER="fab" ;;
-          neoforge) SHORT_LOADER="neo" ;;
+          forge)    SHORT_LOADER="forge" ;;
           *)        SHORT_LOADER="$LOADER" ;;
         esac
 

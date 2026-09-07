@@ -11,8 +11,8 @@
 #   Modrinth   -> secret MODRINTH_TOKEN     + variable MODRINTH_PROJECT_ID
 #   CurseForge -> secret CURSEFORGE_TOKEN   + variable CURSEFORGE_PROJECT_ID
 #
-# Optional variables: GAME_VERSIONS (default 1.21.11), DISPLAY_VERSION
-# (default mc-1.21.11), ARCHIVES_BASE (default: the repo name).
+# Optional variables: GAME_VERSIONS (default 1.20.1), DISPLAY_VERSION
+# (default mc-1.20.1), ARCHIVES_BASE (default: the repo name).
 # =============================================================================
 name: Publish Existing Release
 
@@ -162,7 +162,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        loader: [fabric, neoforge]
+        loader: [fabric, forge]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -178,7 +178,7 @@ jobs:
         uses: ./.github/actions/prepare-modrinth-upload
         with:
           archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
-          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.21.11' }}
+          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.20.1' }}
           mod-version: ${{ needs.prepare.outputs.mod_version }}
           is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
           artifact-path: artifacts
@@ -198,7 +198,7 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.21.11' }}
+            ${{ vars.GAME_VERSIONS || '1.20.1' }}
           game-version-filter: any
           changelog: ${{ needs.prepare.outputs.changelog }}
           modrinth-featured: false
@@ -222,7 +222,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        loader: [fabric, neoforge]
+        loader: [fabric, forge]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -238,7 +238,7 @@ jobs:
         uses: ./.github/actions/prepare-modrinth-upload
         with:
           archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
-          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.21.11' }}
+          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.20.1' }}
           mod-version: ${{ needs.prepare.outputs.mod_version }}
           is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
           artifact-path: artifacts
@@ -258,7 +258,7 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.21.11' }}
+            ${{ vars.GAME_VERSIONS || '1.20.1' }}
           game-version-filter: any
           changelog: ${{ needs.prepare.outputs.changelog }}
           retry-attempts: 2

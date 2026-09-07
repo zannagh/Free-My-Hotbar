@@ -1,0 +1,7 @@
+{
+  "screen.free-my-hotbar.title": "Free My Hotbar",
+  "screen.free-my-hotbar.help": "Locked slots won't receive picked-up items.",
+  "screen.free-my-hotbar.slot.free": "Slot %s: Free",
+  "screen.free-my-hotbar.slot.locked": "Slot %s: Locked",
+  "key.free-my-hotbar.open_screen": "Open Slot Lock Screen"
+}

@@ -4,26 +4,26 @@ archives_base_name = "free-my-hotbar"
 loader_version = "0.18.4"
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Per MC version — shared between fabric and neoforge for the same game version.
+# Per MC version — shared between fabric and forge for the same game version.
 # Matched via the version tag registered in multiloader-common.gradle.kts.
 # ──────────────────────────────────────────────────────────────────────────────
 
-["1.21.11"]
-java.version = "21"
-display_version = "mc-1.21.11"
+["1.20.1"]
+java.version = "17"
+display_version = "mc-1.20.1"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Per project — loader-specific properties.
-# Matched via the default project tag (e.g. "fabric-1.21.11").
+# Matched via the default project tag (e.g. "fabric-1.20.1").
 #
-# IMPORTANT: fabric.* and neoforge.* keys MUST be quoted ("fabric.xxx") to
+# IMPORTANT: fabric.* and forge.* keys MUST be quoted ("fabric.xxx") to
 # prevent the branch tag from stripping the first segment during path cutting.
 # ──────────────────────────────────────────────────────────────────────────────
 
-["fabric-1.21.11"]
-"fabric.minecraft_version" = "1.21.11"
-"fabric.minecraft_version_range" = "1.21.11"
+["fabric-1.20.1"]
+"fabric.minecraft_version" = "1.20.1"
+"fabric.minecraft_version_range" = "1.20.1"
 
-["neoforge-1.21.11"]
-"neoforge.version" = "21.11.44"
-"neoforge.minecraft_version_range" = "[1.21.11]"
+["forge-1.20.1"]
+"forge.version" = "1.20.1-47.3.0"
+"forge.minecraft_version_range" = "[1.20.1,1.21)"

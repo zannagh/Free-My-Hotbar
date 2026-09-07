@@ -7,7 +7,7 @@ The `main` branch is protected against direct pushes - all changes should go thr
 ## Multi-Version / Multi-Loader Development
 
 This project uses [Stonecutter](https://stonecutter.kikugie.dev/) to build for multiple
-Minecraft versions and loaders (Fabric + NeoForge) from a single codebase. Version-specific
+Minecraft versions and loaders (Fabric + Forge) from a single codebase. Version-specific
 code uses Stonecutter's conditional syntax:
 
 ```java
@@ -26,7 +26,7 @@ All versions are built from the `main` branch - there are no separate version br
 ```
 
 This compiles and tests every active loader variant and produces the loader jars under
-`fabric/versions/*/build/libs/` and `neoforge/versions/*/build/libs/`.
+`fabric/versions/*/build/libs/` and `forge/versions/*/build/libs/`.
 
 ## Testing
 

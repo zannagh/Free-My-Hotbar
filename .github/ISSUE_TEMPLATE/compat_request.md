@@ -14,10 +14,10 @@ issue is about.
 A clear and concise description of what the bug or request is.
 
 **Game Version**
-e.g. 1.21.x
+e.g. 1.20.1
 
 **Loader**
-e.g. Fabric / NeoForge
+e.g. Fabric / Forge
 
 **Mod Version**
 e.g. 1.0.x

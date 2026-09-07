@@ -1,5 +1,5 @@
 # Build validation for pushes and pull requests.
-# Ensures the multi-loader project compiles and produces the Fabric + NeoForge jars.
+# Ensures the multi-loader project compiles and produces the Fabric + Forge jars.
 name: Build
 
 on:
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # `build` compiles + tests every active loader variant (Fabric and NeoForge) and produces
+      # `build` compiles + tests every active loader variant (Fabric and Forge) and produces
       # their jars under <loader>/versions/*/build/libs/.
       - name: Build
         run: ./gradlew build --stacktrace
@@ -58,6 +58,6 @@ jobs:
           # `common` module jars (which are bundled into the loader jars).
           path: |
             fabric/versions/**/build/libs/*.jar
-            neoforge/versions/**/build/libs/*.jar
+            forge/versions/**/build/libs/*.jar
             !**/*-sources.jar
           if-no-files-found: warn

@@ -6,7 +6,7 @@ plugins {
 val sc = project.stonecutterBuild
 val loader = sc.branch.id
 sc.constants["fabric"] = sc.current.project.contains("fabric")
-sc.constants["neoforge"] = sc.current.project.contains("neoforge")
+sc.constants["forge"] = sc.current.project.contains("forge")
 
 // Register the MC version part as a property tag so version-shared sections in
 // stonecutter.properties.toml (e.g. ["1.21.11"]) resolve for this variant. The default

@@ -8,7 +8,7 @@ val sc = project.stonecutterBuild
 
 stonecutter {
     constants["fabric"] = sc.current.project.contains("fabric")
-    constants["neoforge"] = sc.current.project.contains("neoforge")
+    constants["forge"] = sc.current.project.contains("forge")
 }
 
 configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {

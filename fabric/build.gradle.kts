@@ -35,6 +35,9 @@ dependencies {
     if (!project.isDeobf) {
         add("modImplementation", "net.fabricmc:fabric-loader:${property("loader_version")}")
     }
+    // Fabric API — required for networking (ClientPlayNetworking/ServerPlayNetworking),
+    // keybinds (KeyBindingHelper) and lifecycle events (ClientTickEvents/connection events).
+    add("modImplementation", "net.fabricmc.fabric-api:fabric-api:0.92.2+1.20.1")
 }
 
 val expandProps = mapOf(

@@ -20,10 +20,10 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 /**
- * Validates the loader metadata shipped in the template exactly as Fabric / NeoForge would read
+ * Validates the loader metadata shipped in the template exactly as Fabric / Forge would read
  * it: the JSON must parse and the TOML must parse, and each must carry the mod identity the two
  * loaders expect (dashed {@code free-my-hotbar} for Fabric/resources, underscored {@code free_my_hotbar}
- * for NeoForge). These invariants stay TRUE for any renamed mod once the setup script rewrites the
+ * for Forge). These invariants stay TRUE for any renamed mod once the setup script rewrites the
  * placeholders, because they assert structure plus the shipped placeholder values.
  */
 @DisplayName("Mod metadata smoke")
@@ -34,7 +34,7 @@ class ModMetadataSmokeTest {
             System.getProperty("smoke.repo.root", System.getProperty("user.dir")));
 
     private static final String FABRIC_MOD_ID = "free-my-hotbar";
-    private static final String NEOFORGE_MOD_ID = "free_my_hotbar";
+    private static final String FORGE_MOD_ID = "free_my_hotbar";
     private static final String BASE_PACKAGE = "io.github.zannagh.freemyhotbar";
 
     @Test
@@ -52,20 +52,42 @@ class ModMetadataSmokeTest {
     }
 
     @Test
-    @DisplayName("neoforge.mods.toml parses and declares the expected modId")
-    void neoforgeModsTomlIsValid() throws IOException {
-        String content = readString("neoforge/src/main/resources/META-INF/neoforge.mods.toml");
+    @DisplayName("mods.toml parses, declares the expected modId, and uses classic-Forge dependencies")
+    void forgeModsTomlIsValid() throws IOException {
+        String content = readString("forge/src/main/resources/META-INF/mods.toml");
         TomlParseResult toml = Toml.parse(content);
 
-        assertFalse(toml.hasErrors(), () -> "neoforge.mods.toml must parse: " + toml.errors());
+        assertFalse(toml.hasErrors(), () -> "mods.toml must parse: " + toml.errors());
         assertEquals("javafml", toml.getString("modLoader"), "modLoader must be javafml");
 
         TomlArray mods = toml.getArray("mods");
-        assertNotNull(mods, "neoforge.mods.toml must declare at least one [[mods]] table");
-        assertTrue(mods.size() >= 1, "neoforge.mods.toml must declare at least one [[mods]] table");
+        assertNotNull(mods, "mods.toml must declare at least one [[mods]] table");
+        assertTrue(mods.size() >= 1, "mods.toml must declare at least one [[mods]] table");
         TomlTable firstMod = mods.getTable(0);
-        assertEquals(NEOFORGE_MOD_ID, firstMod.getString("modId"),
-                "the NeoForge modId must be the underscored form of the mod id");
+        assertEquals(FORGE_MOD_ID, firstMod.getString("modId"),
+                "the Forge modId must be the underscored form of the mod id");
+
+        // Classic Forge (1.20.1 / FML 47) declares dependency requiredness with the boolean field
+        // `mandatory`. NeoForge (1.20.2+) replaced it with `type="required"`; using that here throws
+        // at runtime ("Missing required field mandatory in dependency"). Guard against the NeoForge
+        // syntax leaking back in, since it only surfaces when the client actually boots.
+        TomlArray deps = toml.getArray("dependencies." + FORGE_MOD_ID);
+        assertNotNull(deps, "mods.toml must declare [[dependencies." + FORGE_MOD_ID + "]] entries");
+        boolean hasForgeDep = false;
+        for (int i = 0; i < deps.size(); i++) {
+            TomlTable dep = deps.getTable(i);
+            String modId = dep.getString("modId");
+            assertTrue(dep.contains("mandatory"),
+                    () -> "Forge dependency '" + modId + "' must use the boolean `mandatory` field (classic Forge)");
+            assertFalse(dep.contains("type"),
+                    () -> "Forge dependency '" + modId + "' must not use NeoForge's `type` field; use `mandatory`");
+            if ("forge".equals(modId)) {
+                hasForgeDep = true;
+                assertEquals(Boolean.TRUE, dep.getBoolean("mandatory"),
+                        "the forge dependency must be mandatory=true");
+            }
+        }
+        assertTrue(hasForgeDep, "mods.toml must declare a dependency on modId=\"forge\"");
     }
 
     @Test

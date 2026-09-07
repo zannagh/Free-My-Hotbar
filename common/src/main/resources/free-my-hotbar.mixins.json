@@ -2,7 +2,9 @@
   "required": true,
   "package": "io.github.zannagh.freemyhotbar.mixin",
   "compatibilityLevel": "JAVA_${java_version}",
-  "mixins": [],
+  "mixins": [
+    "InventoryMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

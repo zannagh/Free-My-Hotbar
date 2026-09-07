@@ -3,7 +3,7 @@ plugins {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
 }
 
 repositories {
@@ -35,7 +35,7 @@ dependencies {
     testRuntimeOnly("org.slf4j:slf4j-simple:2.0.16")
 
     // Metadata invariants: parse the shipped fabric.mod.json / mixin configs (JSON) and
-    // neoforge.mods.toml (TOML) the same way the loaders would.
+    // mods.toml (TOML) the same way the loaders would.
     testImplementation("com.google.code.gson:gson:2.13.1")
     testImplementation("org.tomlj:tomlj:1.1.1")
 }

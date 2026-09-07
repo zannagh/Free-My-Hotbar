@@ -1,6 +1,6 @@
 # Build & Publish
 # =============================================================================
-# Publishes the Fabric + NeoForge jars to the mod distribution platforms.
+# Publishes the Fabric + Forge jars to the mod distribution platforms.
 #
 # DORMANT BY DEFAULT: this workflow only runs on a published GitHub Release or a
 # manual dispatch, and every external-publish job is gated on configuration being
@@ -14,9 +14,9 @@
 #   Modrinth   -> secret MODRINTH_TOKEN     + variable MODRINTH_PROJECT_ID
 #   CurseForge -> secret CURSEFORGE_TOKEN   + variable CURSEFORGE_PROJECT_ID
 #
-# Optional variables (sensible defaults for the shipped 1.21.11 template):
-#   GAME_VERSIONS    Minecraft versions to tag, newline- or space-separated.  Default: 1.21.11
-#   DISPLAY_VERSION  The "+<display>" segment in the jar names.               Default: mc-1.21.11
+# Optional variables (sensible defaults for the shipped 1.20.1 template):
+#   GAME_VERSIONS    Minecraft versions to tag, newline- or space-separated.  Default: 1.20.1
+#   DISPLAY_VERSION  The "+<display>" segment in the jar names.               Default: mc-1.20.1
 #   ARCHIVES_BASE    stonecutter archives_base_name.                          Default: the repo name
 #
 # Secrets are set under Settings > Secrets and variables > Actions > Secrets;
@@ -122,7 +122,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
-          DISPLAY_VERSION="${DISPLAY_VERSION_VAR:-mc-1.21.11}"
+          DISPLAY_VERSION="${DISPLAY_VERSION_VAR:-mc-1.20.1}"
 
           if [[ "${{ github.event_name }}" == "release" ]]; then
             MOD_VERSION="${RELEASE_TAG#v}"
@@ -148,7 +148,7 @@ jobs:
           name: mod-jars
           path: |
             fabric/versions/**/build/libs/*.jar
-            neoforge/versions/**/build/libs/*.jar
+            forge/versions/**/build/libs/*.jar
             !**/*-sources.jar
           if-no-files-found: error
 
@@ -190,7 +190,7 @@ jobs:
       # which silently yields empty loaders/game_versions metadata on the published version.
       max-parallel: 1
       matrix:
-        loader: [fabric, neoforge]
+        loader: [fabric, forge]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -226,7 +226,7 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.21.11' }}
+            ${{ vars.GAME_VERSIONS || '1.20.1' }}
           game-version-filter: any
           changelog: ${{ github.event.release.body }}
           modrinth-featured: false
@@ -245,7 +245,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        loader: [fabric, neoforge]
+        loader: [fabric, forge]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -281,7 +281,7 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.21.11' }}
+            ${{ vars.GAME_VERSIONS || '1.20.1' }}
           game-version-filter: any
           changelog: ${{ github.event.release.body }}
           retry-attempts: 2
