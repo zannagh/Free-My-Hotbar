@@ -148,7 +148,7 @@ public final class ClientSlotConfig {
     private static Path configPath() {
         try{
             return Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve(FILE_NAME);
-        } catch (NullPointerException) {
+        } catch (NullPointerException ignored) {
             return null;
         }
     }

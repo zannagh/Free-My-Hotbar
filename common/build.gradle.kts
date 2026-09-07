@@ -20,7 +20,8 @@ configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
 
     // Shared run directory for all versions
     runConfigs.configureEach {
-        runDir = "run"
+        val dir = project.layout.buildDirectory.dir("run")
+        runDirectory.set(dir)
     }
 }
 

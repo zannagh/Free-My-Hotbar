@@ -2,7 +2,8 @@ plugins {
     id("multiloader-loader")
 }
 
-apply(plugin = if (project.isDeobf) "loom-deobfuscated" else "loom-obfuscated")
+val plugin = if (project.isDeobf) "loom-deobfuscated" else "loom-obfuscated"
+plugins.apply(plugin)
 
 val sc = project.stonecutterBuild
 val fabricVersion = findProperty("fabric.minecraft_version")!!.toString()
@@ -23,10 +24,11 @@ configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
 
     // Shared run directory for all versions
     runConfigs.configureEach {
-        runDir = "run"
-        ideConfigGenerated(true)
+        val dir = project.layout.buildDirectory.dir("run")
+        runDirectory.set(dir)
+        generateRunConfig.set(true)
         if (project.isDeobf) {
-            vmArg("-Dfabric.gameVersion=${fabricVersion}")
+            jvmArguments.add("-Dfabric.gameVersion=${fabricVersion}")
         }
     }
 }
