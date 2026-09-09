@@ -47,7 +47,7 @@ public final class SlotLockScreen extends Screen {
 
     private Component labelFor(int slot) {
         int display = slot + 1;
-        if (config.isLocked(slot)) {
+        if (config.isBlocked(slot)) {
             return Component.translatable("screen.free-my-hotbar.slot.locked", display);
         }
         return Component.translatable("screen.free-my-hotbar.slot.free", display);

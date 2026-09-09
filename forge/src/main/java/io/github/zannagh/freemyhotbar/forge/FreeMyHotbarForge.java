@@ -12,8 +12,8 @@ import net.minecraftforge.fml.common.Mod;
 
 /**
  * Forge entrypoint for Free My Hotbar. Wires the optional networking channel, the server-side
- * lifecycle cleanup (drop a player's stored mask on logout), and — client-side only — the keybind,
- * client init and mask sync glue.
+ * lifecycle cleanup (drop a player's stored slots on logout), and — client-side only — the keybind,
+ * client init and slot sync glue.
  */
 @Mod(ForgeNetworking.MOD_ID)
 public class FreeMyHotbarForge {

@@ -29,9 +29,6 @@ public final class FreeMyHotbarKeys {
     /** Opens the slot-lock screen for the current client instance. */
     public static void openScreen() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null) {
-            return;
-        }
         minecraft.setScreen(new SlotLockScreen(FreeMyHotbarClient.config()));
     }
 

@@ -6,43 +6,48 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.IntConsumer;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import io.github.zannagh.freemyhotbar.FreeMyHotbar;
+import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 import net.minecraft.client.Minecraft;
 
 /**
- * Client-side persistence of the 9-bit hotbar lock mask (bits 0-8).
+ * Client-side persistence of the blocked hotbar slots (ids 0-8).
  *
  * <p>Stored as versioned JSON at {@code <gamedir>/config/free-my-hotbar.json}. Mutations are
- * fail-safe: a corrupt or missing file yields defaults. On every change the {@link IntConsumer}
- * sync callback is fired with the new mask so a loader can forward it to the server without common
- * code referencing any loader networking API.
+ * fail-safe: a corrupt or missing file yields defaults. On every change the sync callback is fired
+ * with the current slots so a loader can forward them to the server without common code referencing
+ * any loader networking API.
  */
 public final class ClientSlotConfig {
 
     /** Current on-disk schema version. */
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
 
-    private static final int SLOT_COUNT = 9;
-    private static final int MASK_BITS = (1 << SLOT_COUNT) - 1;
+    private static final int SLOT_COUNT = SlotBlock.HOTBAR_SLOT_COUNT;
     private static final String FILE_NAME = "free-my-hotbar.json";
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    private int configVersion = CURRENT_VERSION;
-    private int mask;
+    private final Set<SlotBlock> blocked = new LinkedHashSet<>();
 
-    private transient IntConsumer syncCallback = m -> {
+    private transient Consumer<List<SlotBlock>> syncCallback = s -> {
     };
 
     /** Serializable view written to and read from disk. */
     private static final class Data {
         int configVersion = CURRENT_VERSION;
-        int mask;
+        List<SlotBlock> slots;
+        /** Legacy v1 field: boxed so a null means "absent". Read only during migration. */
+        Integer mask;
     }
 
     /**
@@ -56,14 +61,32 @@ public final class ClientSlotConfig {
         if (path == null || !Files.exists(path)) {
             return config;
         }
+        boolean migrated = false;
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             Data data = GSON.fromJson(reader, Data.class);
             if (data != null) {
-                config.configVersion = CURRENT_VERSION;
-                config.mask = data.mask & MASK_BITS;
+                if (data.slots != null) {
+                    for (SlotBlock slot : SlotBlock.blockedOnly(data.slots)) {
+                        if (slot.slotId() >= 0 && slot.slotId() < SLOT_COUNT) {
+                            config.blocked.add(slot);
+                        }
+                    }
+                } else if (data.mask != null) {
+                    // legacy v1 mask migration: decode the low SLOT_COUNT bits into slot ids.
+                    for (int id = 0; id < SLOT_COUNT; id++) {
+                        if (((data.mask >> id) & 1) != 0) {
+                            config.blocked.add(new SlotBlock(id, true));
+                        }
+                    }
+                    migrated = true;
+                }
             }
         } catch (Exception e) {
             FreeMyHotbar.LOGGER.warn("Failed to read {}, using defaults", FILE_NAME, e);
+        }
+        if (migrated) {
+            // Rewrite in the current (v2) format so the legacy mask field is dropped on disk.
+            config.save();
         }
         return config;
     }
@@ -75,8 +98,8 @@ public final class ClientSlotConfig {
             return;
         }
         Data data = new Data();
-        data.configVersion = configVersion;
-        data.mask = mask & MASK_BITS;
+        data.configVersion = CURRENT_VERSION;
+        data.slots = slots();
         try {
             Files.createDirectories(path.getParent());
             try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
@@ -88,29 +111,29 @@ public final class ClientSlotConfig {
     }
 
     /**
-     * Returns the raw 9-bit mask (bits 0-8).
+     * Returns the slots 0-8 with their blocked state, in ascending id order.
      *
-     * @return the current mask.
+     * @return the current slot list.
      */
-    public int mask() {
-        return mask;
+    public List<SlotBlock> slots() {
+        return SlotBlock.fullList(blocked, SLOT_COUNT);
     }
 
     /**
-     * Returns whether the given hotbar slot is locked.
+     * Returns whether the given hotbar slot is blocked.
      *
      * @param slot hotbar slot index 0-8.
-     * @return true if the slot's bit is set.
+     * @return true if the slot is blocked.
      */
-    public boolean isLocked(int slot) {
+    public boolean isBlocked(int slot) {
         if (slot < 0 || slot >= SLOT_COUNT) {
             return false;
         }
-        return (mask & (1 << slot)) != 0;
+        return blocked.contains(new SlotBlock(slot, true));
     }
 
     /**
-     * Flips the lock bit for a slot, saves, then fires the sync callback.
+     * Toggles the blocked state of a slot, saves, then fires the sync callback.
      *
      * @param slot hotbar slot index; ignored when outside 0-8.
      */
@@ -118,30 +141,38 @@ public final class ClientSlotConfig {
         if (slot < 0 || slot >= SLOT_COUNT) {
             return;
         }
-        mask ^= (1 << slot);
-        mask &= MASK_BITS;
+        SlotBlock b = new SlotBlock(slot, true);
+        if (!blocked.remove(b)) {
+            blocked.add(b);
+        }
         save();
-        syncCallback.accept(mask);
+        syncCallback.accept(slots());
     }
 
     /**
-     * Replaces the whole mask, saves, then fires the sync callback.
+     * Replaces the blocked slots with a filtered copy (blocked-only, ids 0-8), saves, then fires
+     * the sync callback.
      *
-     * @param newMask the new mask; clamped to bits 0-8.
+     * @param in the new slots; non-blocked entries and ids outside 0-8 are dropped.
      */
-    public void set(int newMask) {
-        mask = newMask & MASK_BITS;
+    public void setBlocked(Collection<SlotBlock> in) {
+        blocked.clear();
+        for (SlotBlock slot : SlotBlock.blockedOnly(in)) {
+            if (slot.slotId() >= 0 && slot.slotId() < SLOT_COUNT) {
+                blocked.add(slot);
+            }
+        }
         save();
-        syncCallback.accept(mask);
+        syncCallback.accept(slots());
     }
 
     /**
-     * Sets the sync callback invoked with the new mask after every mutation.
+     * Sets the sync callback invoked with the current slots after every mutation.
      *
-     * @param callback consumer of the mask; null resets to a no-op.
+     * @param callback consumer of the slot list; null resets to a no-op.
      */
-    public void setSyncCallback(IntConsumer callback) {
-        syncCallback = callback != null ? callback : m -> {
+    public void setSyncCallback(Consumer<List<SlotBlock>> callback) {
+        syncCallback = callback != null ? callback : s -> {
         };
     }
 

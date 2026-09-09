@@ -14,8 +14,8 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 /**
  * Client-only Forge glue. Registers the keybind (mod bus), opens the lock screen on the key press
- * (forge tick), performs common client init and installs the mask sync sender (client setup), and
- * resends the mask when the player joins a world. Loaded only on the physical client via the
+ * (forge tick), performs common client init and installs the slot sync sender (client setup), and
+ * resends the slots when the player joins a world. Loaded only on the physical client via the
  * {@code DistExecutor} guard in the mod constructor.
  */
 public final class FreeMyHotbarClientForge {
@@ -39,7 +39,7 @@ public final class FreeMyHotbarClientForge {
 
     private static void onClientSetup(FMLClientSetupEvent event) {
         FreeMyHotbarClient.init();
-        FreeMyHotbarClient.setSyncSender(ForgeNetworking::sendMask);
+        FreeMyHotbarClient.setSyncSender(ForgeNetworking::sendBlocks);
     }
 
     private static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -49,6 +49,6 @@ public final class FreeMyHotbarClientForge {
     }
 
     private static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
-        ForgeNetworking.sendMask(FreeMyHotbarClient.config().mask());
+        ForgeNetworking.sendBlocks(FreeMyHotbarClient.config().slots());
     }
 }

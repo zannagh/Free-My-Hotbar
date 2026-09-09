@@ -19,6 +19,11 @@ stonecutter {
     create(rootProject, file("versions.json5"))
 }
 
+// MC-free, plain-Java loader-agnostic core shared by :common and both loaders (compiled against
+// directly) and bundled into every shipped loader jar. Version-agnostic — one artifact covers
+// every game version. Sibling subproject, NOT a stonecutter branch.
+include(":core")
+
 // Plain-JVM JUnit smoke suite: fast invariants that catch a broken template. Not a Stonecutter
 // branch. Run it with `./gradlew smokeTest`.
 include(":smoke")

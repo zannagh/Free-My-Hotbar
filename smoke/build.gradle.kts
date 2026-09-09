@@ -10,21 +10,15 @@ repositories {
     mavenCentral()
 }
 
-// The smoke suite exercises the mod's loader-agnostic core (FreeMyHotbar) WITHOUT booting
-// Minecraft or resolving Loom: it compiles just that class straight from :common's main sources
-// and validates the shipped loader metadata as plain files. Mixin classes under :common DO touch
-// Minecraft, so they are excluded from this lightweight compile. This keeps the suite fast and
-// dependency-light while still proving the core wiring is intact.
-sourceSets {
-    named("test") {
-        java {
-            srcDir(rootProject.file("common/src/main/java"))
-            exclude("**/mixin/**")
-        }
-    }
-}
-
+// The smoke suite exercises the mod's loader-agnostic core (FreeMyHotbar + the slot model) WITHOUT
+// booting Minecraft or resolving Loom: it compiles against the MC-free :core module directly and
+// validates the shipped loader metadata as plain files. Mixin classes (which touch Minecraft) live
+// in :common and are never on this classpath. This keeps the suite fast and dependency-light while
+// still proving the core wiring is intact.
 dependencies {
+    // The MC-free core under test (FreeMyHotbar, SlotBlock, SlotSelection, SlotLockState).
+    testImplementation(project(":core"))
+
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

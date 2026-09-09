@@ -3,7 +3,7 @@ plugins {
     id("net.neoforged.moddev.legacyforge") version "2.0.140" apply false
 }
 
-stonecutter active "forge-1.20.1" /* [SC] DO NOT EDIT */
+stonecutter active "fabric-1.20.1" /* [SC] DO NOT EDIT */
 
 // Runnable entry point for the plain-JVM smoke suite. CI (and contributors) call
 // `./gradlew smokeTest`; it delegates to the :smoke subproject's test task.

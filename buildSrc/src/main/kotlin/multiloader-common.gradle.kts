@@ -31,6 +31,15 @@ java {
     withSourcesJar()
 }
 
+dependencies {
+    // The MC-free :core. A plain-Java library (not a mod / not remapped). Applied here in
+    // multiloader-common so it lands on the compile classpath of :common and BOTH loader flavours
+    // (both apply this plugin, the loaders transitively via multiloader-loader), which srcDir
+    // common's sources and compile against it directly. Plain `implementation`, NOT
+    // `modImplementation` — :core is a plain-Java library, not a remapped mod.
+    implementation(project(":core"))
+}
+
 tasks.jar {
     includeLicense(base.archivesName.get())
 }

@@ -1,13 +1,15 @@
 package io.github.zannagh.freemyhotbar.client;
 
-import java.util.function.IntConsumer;
+import java.util.List;
+import java.util.function.Consumer;
 
 import io.github.zannagh.freemyhotbar.FreeMyHotbar;
 import io.github.zannagh.freemyhotbar.client.config.ClientSlotConfig;
+import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 
 /**
  * Common (loader-agnostic) client init hook. Loads the client config singleton and exposes it, plus
- * a seam for a loader to install the mask sync sender.
+ * a seam for a loader to install the slot sync sender.
  */
 public final class FreeMyHotbarClient {
 
@@ -21,7 +23,6 @@ public final class FreeMyHotbarClient {
         initConfig();
     }
 
-    /** Loads the client config singleton if it is not already loaded. */
     public static synchronized void initConfig() {
         if (config == null) {
             config = ClientSlotConfig.load();
@@ -41,11 +42,11 @@ public final class FreeMyHotbarClient {
     }
 
     /**
-     * Wires the config's sync callback so mask changes reach the loader's packet sender.
+     * Wires the config's sync callback so slot changes reach the loader's packet sender.
      *
-     * @param sender consumer of the mask; a loader supplies its networking send here.
+     * @param sender consumer of the slot list; a loader supplies its networking send here.
      */
-    public static void setSyncSender(IntConsumer sender) {
+    public static void setSyncSender(Consumer<List<SlotBlock>> sender) {
         config().setSyncCallback(sender);
     }
 }
