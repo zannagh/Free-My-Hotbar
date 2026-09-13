@@ -27,6 +27,35 @@ class ExpandPropertiesAction(private val props: Map<String, Any>) : Action<FileC
     }
 }
 
+/**
+ * Injects a `refmap` field into a mixin config JSON as it is copied. Used on the classic-Forge
+ * side only: MDG's Mixin annotation processor generates an SRG refmap named e.g.
+ * `free-my-hotbar.refmap.json`, but Mixin only loads it when the config references it by name —
+ * otherwise it falls back to the default `mixin.refmap.json`, which does not exist, and the
+ * injections silently never apply in a reobfuscated production jar. The field is added at package
+ * time so the shared source config stays clean for Fabric (Loom remaps mixins statically and needs
+ * no refmap). The insertion is a no-op if a `refmap` field is already present.
+ */
+class InjectMixinRefmapAction(private val refmap: String) : Action<FileCopyDetails>, Serializable {
+    override fun execute(details: FileCopyDetails) {
+        var injected = false
+        details.filter { line: String ->
+            when {
+                line.contains("\"refmap\"") -> {
+                    injected = true
+                    line
+                }
+                !injected && line.trimStart().startsWith("\"required\"") -> {
+                    injected = true
+                    val indent = line.takeWhile { it == ' ' }
+                    "$indent\"refmap\": \"$refmap\",\n$line"
+                }
+                else -> line
+            }
+        }
+    }
+}
+
 /** Configures the jar task to include LICENSE with a project-specific suffix. */
 fun Jar.includeLicense(archivesName: String) {
     from("LICENSE") {

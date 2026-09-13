@@ -49,11 +49,29 @@ legacyForge {
     }
 }
 
-// Mixins are wired via the top-level mixin block (not mods.toml) for classic Forge; MDG adds
-// the MixinConfigs manifest attribute and refmap from the configs listed here.
+// Mixins for classic Forge. MDG's `config(...)` only registers the config for dev runs
+// (as `--mixin.config` launch args) and does NOT emit anything into the shipped jar: it neither
+// writes the `MixinConfigs` manifest attribute nor generates a refmap. Two things are therefore
+// wired explicitly below so the reobfuscated production jar actually applies the mixins:
+//   1. `add(sourceSet, refmapName)` runs the Mixin annotation processor for that source set,
+//      generating the SRG refmap (build/mixin/...) and bundling it into the jar. The refmap maps
+//      the mixin's official method references (getFreeSlot / getSlotWithRemainingSpace) to SRG
+//      names at runtime; without it the @Inject targets never resolve in a reobf'd jar.
+//   2. The `MixinConfigs` manifest attribute (set on tasks.jar below) — classic Forge registers
+//      mixin configs from that manifest entry.
+// InventoryMixin lives in the main source set (common main sources are srcDir'd into main), so the
+// refmap is generated for main. The client config declares no client mixins, so it needs none.
 mixin {
     config("free-my-hotbar.mixins.json")
     config("free-my-hotbar.client.mixins.json")
+    add(sourceSets.main.get(), "free-my-hotbar.refmap.json")
+}
+
+// The Mixin annotation processor generates the SRG refmap that `mixin.add(...)` wires into the jar.
+// MDG configures the compiler ARGS for it but does not put the processor on the classpath, so add
+// it here. Forge 1.20.1 ships Mixin 0.8.5; the `:processor` classifier is the fat AP jar.
+dependencies {
+    annotationProcessor("org.spongepowered:mixin:0.8.5:processor")
 }
 
 tasks.jar {
@@ -61,6 +79,11 @@ tasks.jar {
     // Common client sources are in both main and client (main needs them for compile visibility,
     // client gets them from multiloader-loader). Exclude duplicates in the jar.
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // Classic Forge loads mixin configs from this manifest attribute. MDG does not add it, so do it
+    // here. The reobfuscation (RemapJar) step copies this manifest through to the shipped jar.
+    manifest {
+        attributes("MixinConfigs" to "free-my-hotbar.mixins.json,free-my-hotbar.client.mixins.json")
+    }
 }
 
 val expandProps = mapOf(
@@ -70,12 +93,21 @@ val expandProps = mapOf(
     "java_version" to project.prop("java.version")!!
 )
 
+// The refmap name here must match the one passed to mixin.add(...) above so the packaged Forge
+// mixin configs point Mixin at the generated SRG refmap. Fabric is untouched (it keeps the clean
+// shared source config and remaps mixins statically).
+val mixinRefmap = "free-my-hotbar.refmap.json"
+
 tasks.processResources {
     inputs.properties(expandProps)
+    inputs.property("mixinRefmap", mixinRefmap)
     filesMatching(listOf("META-INF/mods.toml", "**/*.mixins.json"), ExpandPropertiesAction(expandProps))
+    filesMatching("**/*.mixins.json", InjectMixinRefmapAction(mixinRefmap))
 }
 
 tasks.named<ProcessResources>("processClientResources") {
     inputs.properties(expandProps)
+    inputs.property("mixinRefmap", mixinRefmap)
     filesMatching("**/*.mixins.json", ExpandPropertiesAction(expandProps))
+    filesMatching("**/*.mixins.json", InjectMixinRefmapAction(mixinRefmap))
 }

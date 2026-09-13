@@ -6,8 +6,8 @@ license="MIT"
 modId="free_my_hotbar"
 version="${version}"
 displayName="Free My Hotbar"
-description="A Minecraft mod."
-authors="Your Name"
+description="A mod to block hotbar slots from item pickup."
+authors="Zannagh"
 
 [[dependencies."free_my_hotbar"]]
 modId="forge"

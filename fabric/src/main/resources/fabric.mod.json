@@ -3,10 +3,10 @@
   "id": "free-my-hotbar",
   "version": "${version}",
   "name": "Free My Hotbar",
-  "description": "A Minecraft mod.",
+  "description": "A mod to block hotbar slots from item pickup.",
   "authors": [
     {
-      "name": "Your Name"
+      "name": "Zannagh"
     }
   ],
   "contact": {
