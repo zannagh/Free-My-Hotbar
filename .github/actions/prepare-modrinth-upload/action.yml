@@ -4,10 +4,6 @@ description: >
   version number, display name and version type used when publishing to Modrinth/CurseForge.
 
 inputs:
-  archives-base-name:
-    description: The archives base name the jars are built under (stonecutter archives_base_name).
-    required: false
-    default: free-my-hotbar
   display-version:
     description: Display version string used in the jar name (e.g. "mc-1.20.1").
     required: true
@@ -48,10 +44,9 @@ runs:
       id: find-jar
       shell: bash
       run: |
-        BASE="${{ inputs.archives-base-name }}"
         LOADER="${{ inputs.loader }}"
         DISPLAY="${{ inputs.display-version }}"
-        JAR=$(find "${{ inputs.artifact-path }}" -name "${BASE}-${LOADER}-*+${DISPLAY}.jar" ! -name "*-sources.jar" 2>/dev/null | head -n1)
+        JAR=$(find "${{ inputs.artifact-path }}" -name "free-my-hotbar-${LOADER}-*+${DISPLAY}.jar" ! -name "*-sources.jar" 2>/dev/null | head -n1)
         if [[ -z "$JAR" ]]; then
           echo "No JAR found for ${LOADER} ${DISPLAY}"
           echo "found=false" >> "$GITHUB_OUTPUT"

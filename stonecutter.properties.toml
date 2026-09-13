@@ -10,7 +10,10 @@ loader_version = "0.18.4"
 
 ["1.20.1"]
 java.version = "17"
+# display_version: the "+<display>" jar-name segment (and publish-matrix key).
+# game_versions: the MC versions this variant is tagged against. Both feed stageArtifacts.
 display_version = "mc-1.20.1"
+game_versions = "1.20.1"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Per project — loader-specific properties.

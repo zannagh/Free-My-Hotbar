@@ -1,5 +1,4 @@
 # Build validation for pushes and pull requests.
-# Ensures the multi-loader project compiles and produces the Fabric + Forge jars.
 name: Build
 
 on:
@@ -13,7 +12,6 @@ on:
       - '**.md'
       - 'docs/**'
 
-# Cancel superseded runs on the same ref.
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,7 +30,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Full history so any version-from-git tooling can resolve tags.
           fetch-depth: 0
 
       - name: Set up JDK 21
@@ -41,23 +38,25 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # setup-gradle handles the Gradle user-home cache and validates the wrapper checksum.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # `build` compiles + tests every active loader variant (Fabric and Forge) and produces
-      # their jars under <loader>/versions/*/build/libs/.
-      - name: Build
-        run: ./gradlew build --stacktrace
+      - name: Calculate version
+        id: version
+        uses: zannagh/versionizer/calculate-version@v1
 
-      - name: Upload loader jars
+      # Build-validation runs always build as prerelease; they never ship.
+      - name: Build & Stage Artifacts
+        run: |
+          ./gradlew stageArtifacts --stacktrace \
+            -PsemVer="${{ steps.version.outputs.fullSemVer }}" \
+            -Pprerelease="true"
+
+      - name: Upload staged artifacts
         uses: actions/upload-artifact@v7
         with:
           name: mod-jars
-          # The distributable loader jars only - exclude sources jars and the intermediate
-          # `common` module jars (which are bundled into the loader jars).
           path: |
-            fabric/versions/**/build/libs/*.jar
-            forge/versions/**/build/libs/*.jar
-            !**/*-sources.jar
+            staging/*.jar
+            staging/versions.json
           if-no-files-found: warn

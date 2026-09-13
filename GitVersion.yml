@@ -3,7 +3,9 @@
 # Supports automatic prerelease versioning on main branch
 
 mode: ContinuousDeployment
-tag-prefix: '(preview-)?[vV]?(\d\.\d\d.\d\d)?-?'
+# Strip an optional leading v/V and an optional MC-version prefix so both plain semver
+# tags (v0.1.0) and any future MC-prefixed tags (v1.20.1-0.2.0) resolve to a clean SemVer.
+tag-prefix: '[vV]?(1\.\d+\.\d+-)?'
 version-in-branch-pattern: (\A(?!x)x)
 no-bump-message: '(\+semver:\s?(none|skip))'
 major-version-bump-message: '\+semver:\s?(breaking|major)'

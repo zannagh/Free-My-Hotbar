@@ -1,19 +1,8 @@
 # Publish Existing Release
-# =============================================================================
-# Manually re-publish the jars already attached to a GitHub release/prerelease to
-# Modrinth and/or CurseForge WITHOUT rebuilding. Assets are pulled from the
-# release; version metadata is derived from the tag and jar names.
-#
-# DORMANT BY DEFAULT: dispatch-only, restricted to repository admins, and every
-# external-publish job is gated on the platform being configured (same secrets/
-# vars as publish.yml):
-#
-#   Modrinth   -> secret MODRINTH_TOKEN     + variable MODRINTH_PROJECT_ID
-#   CurseForge -> secret CURSEFORGE_TOKEN   + variable CURSEFORGE_PROJECT_ID
-#
-# Optional variables: GAME_VERSIONS (default 1.20.1), DISPLAY_VERSION
-# (default mc-1.20.1), ARCHIVES_BASE (default: the repo name).
-# =============================================================================
+# Manually re-publish the jars already attached to a GitHub release/prerelease to Modrinth
+# and/or CurseForge WITHOUT rebuilding. Dispatch-only, restricted to repository admins.
+# Slugs/ids are kept in sync with publish.yml. The publish matrix + game versions are
+# reconstructed from the release jar names + stonecutter.properties.toml.
 name: Publish Existing Release
 
 on:
@@ -45,6 +34,12 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Modrinth project slug - keep in sync with publish.yml. Needs MODRINTH_TOKEN too.
+  MODRINTH_PROJECT_ID: 'free-my-hotbar'
+  # CurseForge numeric project id - keep in sync with publish.yml. Needs CURSEFORGE_TOKEN too.
+  CURSEFORGE_PROJECT_ID: '1695040'
+
 jobs:
   # ===========================================================================
   # PREFLIGHT - which platforms are configured.
@@ -60,9 +55,9 @@ jobs:
         id: cfg
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-          MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+          MODRINTH_PROJECT_ID: ${{ env.MODRINTH_PROJECT_ID }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-          CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          CURSEFORGE_PROJECT_ID: ${{ env.CURSEFORGE_PROJECT_ID }}
         run: |
           MODRINTH=false
           CURSEFORGE=false
@@ -84,6 +79,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      matrix: ${{ steps.metadata.outputs.matrix }}
       mod_version: ${{ steps.release.outputs.mod_version }}
       is_prerelease: ${{ steps.release.outputs.is_prerelease }}
       changelog: ${{ steps.body.outputs.content }}
@@ -138,11 +134,55 @@ jobs:
             echo "RELEASE_BODY_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # Rebuild the {loader:{display:[game_versions]}} map + publish matrix from the release
+      # jar names (<base>-<loader>-<semver>+<display>.jar) and the per-MC toml sections.
+      - name: Reconstruct version metadata
+        id: metadata
+        run: |
+          python3 - <<'PY'
+          import json, os, re, tomllib
+          cfg = tomllib.load(open("stonecutter.properties.toml", "rb"))
+          display_to_games = {}
+          for section in cfg.values():
+              if isinstance(section, dict) and "display_version" in section and "game_versions" in section:
+                  games = sorted({g.strip() for g in section["game_versions"].split(",") if g.strip()})
+                  display_to_games.setdefault(section["display_version"], games)
+          pattern = re.compile(r"^free-my-hotbar-(fabric|forge)-.+\+(.+)\.jar$")
+          versions, matrix, seen = {}, [], set()
+          for name in sorted(os.listdir("release-assets")):
+              if name.endswith("-sources.jar"):
+                  continue
+              m = pattern.match(name)
+              if not m:
+                  print(f"::warning::Skipping unrecognized asset: {name}")
+                  continue
+              loader, display = m.group(1), m.group(2)
+              if (loader, display) in seen:
+                  continue
+              seen.add((loader, display))
+              games = display_to_games.get(display)
+              if games is None:
+                  print(f"::warning::No game_versions mapping for '{display}' - falling back to ['{display}']")
+                  games = [display]
+              versions.setdefault(loader, {})[display] = games
+              matrix.append({"loader": loader, "minecraft": display})
+          if not matrix:
+              raise SystemExit("::error::No publishable free-my-hotbar jars found in the release assets.")
+          with open("release-assets/versions.json", "w") as fh:
+              json.dump(versions, fh, indent=2, sort_keys=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("matrix=" + json.dumps(matrix) + "\n")
+          print("versions.json:"); print(json.dumps(versions, indent=2, sort_keys=True))
+          print("matrix:", json.dumps(matrix))
+          PY
+
       - name: Upload prepared assets
         uses: actions/upload-artifact@v7
         with:
           name: release-assets-${{ inputs.tag }}
-          path: release-assets/*.jar
+          path: |
+            release-assets/*.jar
+            release-assets/versions.json
           if-no-files-found: error
 
   # ===========================================================================
@@ -162,7 +202,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        loader: [fabric, forge]
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -173,12 +213,21 @@ jobs:
           name: release-assets-${{ inputs.tag }}
           path: artifacts
 
+      - name: Get game versions
+        id: game-versions
+        run: |
+          VERSIONS=$(jq -r '."${{ matrix.loader }}"."${{ matrix.minecraft }}" // ["${{ matrix.minecraft }}"] | .[]' artifacts/versions.json)
+          {
+            echo "list<<EOF"
+            echo "$VERSIONS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare upload
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
-          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.20.1' }}
+          display-version: ${{ matrix.minecraft }}
           mod-version: ${{ needs.prepare.outputs.mod_version }}
           is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
           artifact-path: artifacts
@@ -188,7 +237,7 @@ jobs:
         if: steps.prep.outputs.found == 'true'
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
         with:
-          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           files: ${{ steps.prep.outputs.jar_path }}
           name: ${{ steps.prep.outputs.version_name }}
@@ -198,7 +247,7 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.20.1' }}
+            ${{ steps.game-versions.outputs.list }}
           game-version-filter: any
           changelog: ${{ needs.prepare.outputs.changelog }}
           modrinth-featured: false
@@ -222,7 +271,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        loader: [fabric, forge]
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -233,12 +282,21 @@ jobs:
           name: release-assets-${{ inputs.tag }}
           path: artifacts
 
+      - name: Get game versions
+        id: game-versions
+        run: |
+          VERSIONS=$(jq -r '."${{ matrix.loader }}"."${{ matrix.minecraft }}" // ["${{ matrix.minecraft }}"] | .[]' artifacts/versions.json)
+          {
+            echo "list<<EOF"
+            echo "$VERSIONS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare upload
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
-          display-version: ${{ vars.DISPLAY_VERSION || 'mc-1.20.1' }}
+          display-version: ${{ matrix.minecraft }}
           mod-version: ${{ needs.prepare.outputs.mod_version }}
           is-prerelease: ${{ needs.prepare.outputs.is_prerelease }}
           artifact-path: artifacts
@@ -248,7 +306,7 @@ jobs:
         if: steps.prep.outputs.found == 'true'
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
         with:
-          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: ${{ steps.prep.outputs.jar_path }}
           name: ${{ steps.prep.outputs.version_name }}
@@ -258,7 +316,7 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.20.1' }}
+            ${{ steps.game-versions.outputs.list }}
           game-version-filter: any
           changelog: ${{ needs.prepare.outputs.changelog }}
           retry-attempts: 2

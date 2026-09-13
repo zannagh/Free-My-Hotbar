@@ -1,27 +1,9 @@
 # Build & Publish
-# =============================================================================
-# Publishes the Fabric + Forge jars to the mod distribution platforms.
-#
-# DORMANT BY DEFAULT: this workflow only runs on a published GitHub Release or a
-# manual dispatch, and every external-publish job is gated on configuration being
-# present. With nothing configured it builds the jars, attaches them to the
-# release, prints exactly which secrets/vars to set, and exits cleanly WITHOUT
-# publishing anything anywhere.
-#
-# Configure in the repo's Settings to enable a platform (each is independent -
-# enable only the ones you use):
-#
-#   Modrinth   -> secret MODRINTH_TOKEN     + variable MODRINTH_PROJECT_ID
-#   CurseForge -> secret CURSEFORGE_TOKEN   + variable CURSEFORGE_PROJECT_ID
-#
-# Optional variables (sensible defaults for the shipped 1.20.1 template):
-#   GAME_VERSIONS    Minecraft versions to tag, newline- or space-separated.  Default: 1.20.1
-#   DISPLAY_VERSION  The "+<display>" segment in the jar names.               Default: mc-1.20.1
-#   ARCHIVES_BASE    stonecutter archives_base_name.                          Default: the repo name
-#
-# Secrets are set under Settings > Secrets and variables > Actions > Secrets;
-# variables under the neighbouring Variables tab.
-# =============================================================================
+# Publishes the Fabric + Forge jars to Modrinth/CurseForge on a published GitHub Release
+# or manual dispatch. Each platform is gated on its token secret + project id being set;
+# with neither set the jars are only built and attached to the release. The publish matrix
+# is derived from stageArtifacts' staging/versions.json, so adding an MC version/loader is
+# a stonecutter change, not a workflow edit.
 name: Build & Publish
 
 on:
@@ -34,6 +16,11 @@ on:
         required: false
         default: true
         type: boolean
+      force_release:
+        description: 'Force a prerelease decision even if only non-code files changed.'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -41,6 +28,13 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  # Modrinth project slug - the last path segment of modrinth.com/mod/<slug>. Publishing
+  # also needs the MODRINTH_TOKEN secret set.
+  MODRINTH_PROJECT_ID: 'free-my-hotbar'
+  # CurseForge numeric project id (shown on the project page). Needs CURSEFORGE_TOKEN too.
+  CURSEFORGE_PROJECT_ID: '1695040'
 
 jobs:
   # ===========================================================================
@@ -58,9 +52,9 @@ jobs:
         id: cfg
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-          MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+          MODRINTH_PROJECT_ID: ${{ env.MODRINTH_PROJECT_ID }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-          CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          CURSEFORGE_PROJECT_ID: ${{ env.CURSEFORGE_PROJECT_ID }}
         run: |
           MODRINTH=false
           CURSEFORGE=false
@@ -75,8 +69,8 @@ jobs:
             echo ""
             echo "| Platform | Configured | Needs |"
             echo "| --- | --- | --- |"
-            echo "| Modrinth | $MODRINTH | secret \`MODRINTH_TOKEN\` + var \`MODRINTH_PROJECT_ID\` |"
-            echo "| CurseForge | $CURSEFORGE | secret \`CURSEFORGE_TOKEN\` + var \`CURSEFORGE_PROJECT_ID\` |"
+            echo "| Modrinth | $MODRINTH | secret \`MODRINTH_TOKEN\` + env \`MODRINTH_PROJECT_ID\` |"
+            echo "| CurseForge | $CURSEFORGE | secret \`CURSEFORGE_TOKEN\` + env \`CURSEFORGE_PROJECT_ID\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [[ "$MODRINTH" != "true" && "$CURSEFORGE" != "true" ]]; then
@@ -87,19 +81,58 @@ jobs:
           fi
 
   # ===========================================================================
-  # BUILD - always runs; produces the loader jars and resolves the version.
+  # PREPARE - release preflight (version math, release decision, downgrade guard,
+  # Modrinth existence check + changelogs) in one job. See prepare-release action.
+  # ===========================================================================
+  prepare:
+    name: Prepare release
+    needs: [check-config]
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.prep.outputs.should_release }}
+      is_manual_release: ${{ steps.prep.outputs.is_manual_release }}
+      mod_version: ${{ steps.prep.outputs.mod_version }}
+      is_prerelease: ${{ steps.prep.outputs.is_prerelease }}
+      version_exists: ${{ steps.prep.outputs.version_exists }}
+      version_ok: ${{ steps.prep.outputs.version_ok }}
+      changelog_full: ${{ steps.prep.outputs.changelog_full }}
+      changelog_user: ${{ steps.prep.outputs.changelog_user }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Prepare release
+        id: prep
+        uses: ./.github/actions/prepare-release
+        with:
+          event-name: ${{ github.event_name }}
+          is-dry-run: ${{ inputs.dry_run }}
+          force-release: ${{ inputs.force_release }}
+          release-tag-name: ${{ github.event.release.tag_name }}
+          release-prerelease: ${{ github.event.release.prerelease }}
+          release-body: ${{ github.event.release.body }}
+          modrinth-project-id: ${{ env.MODRINTH_PROJECT_ID }}
+          repository: ${{ github.repository }}
+
+  # ===========================================================================
+  # BUILD - produces the loader jars with the GitVersion-derived version.
   # ===========================================================================
   build:
     name: Build
-    needs: [check-config]
+    needs: [check-config, prepare]
     runs-on: ubuntu-latest
+    if: "!cancelled() && needs.prepare.result == 'success'"
     defaults:
       run:
         shell: bash
     outputs:
-      mod_version: ${{ steps.meta.outputs.mod_version }}
-      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
-      display_version: ${{ steps.meta.outputs.display_version }}
+      # Pass-through from prepare so downstream jobs keep reading needs.build.outputs.*.
+      mod_version: ${{ needs.prepare.outputs.mod_version }}
+      is_prerelease: ${{ needs.prepare.outputs.is_prerelease }}
+      # The publish matrix, derived from staging/versions.json.
+      supported_versions: ${{ steps.versions.outputs.matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -115,52 +148,38 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Resolve release metadata
-        id: meta
-        env:
-          DISPLAY_VERSION_VAR: ${{ vars.DISPLAY_VERSION }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+      - name: Build & Stage Artifacts
         run: |
-          DISPLAY_VERSION="${DISPLAY_VERSION_VAR:-mc-1.20.1}"
+          ./gradlew stageArtifacts --stacktrace \
+            -PsemVer="${{ needs.prepare.outputs.mod_version }}" \
+            -Pprerelease="${{ needs.prepare.outputs.is_prerelease }}"
 
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            MOD_VERSION="${RELEASE_TAG#v}"
-            IS_PRERELEASE="${RELEASE_PRERELEASE}"
-          else
-            # Manual dispatch: a non-publishable dev version, always marked prerelease.
-            MOD_VERSION="0.0.0-dispatch.${GITHUB_SHA::7}"
-            IS_PRERELEASE="true"
-          fi
-          [[ -z "$MOD_VERSION" ]] && MOD_VERSION="0.0.0"
+      # Turn staging/versions.json into the publish matrix (one entry per loader/display key).
+      - name: Read Supported Versions
+        id: versions
+        run: |
+          MATRIX=$(jq -c '[to_entries[] | .key as $loader | .value | keys[] | {loader: $loader, minecraft: .}]' staging/versions.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Matrix: $MATRIX"
 
-          echo "mod_version=$MOD_VERSION" >> "$GITHUB_OUTPUT"
-          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
-          echo "display_version=$DISPLAY_VERSION" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: $MOD_VERSION (prerelease: $IS_PRERELEASE, display: $DISPLAY_VERSION)"
-
-      - name: Build
-        run: ./gradlew build --stacktrace
-
-      - name: Upload loader jars
+      - name: Upload staged artifacts
         uses: actions/upload-artifact@v7
         with:
           name: mod-jars
           path: |
-            fabric/versions/**/build/libs/*.jar
-            forge/versions/**/build/libs/*.jar
-            !**/*-sources.jar
+            staging/*.jar
+            staging/versions.json
           if-no-files-found: error
 
   # ===========================================================================
-  # ATTACH TO GITHUB RELEASE - only on a real release; uses the built-in token,
-  # so it needs no external configuration and never publishes off-site.
+  # ATTACH TO GITHUB RELEASE - only on a real release; uses the built-in token.
   # ===========================================================================
   attach-to-release:
     name: Attach jars to GitHub release
-    needs: [build]
+    needs: [prepare, build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    # version_ok is the soft downgrade gate from prepare-release (defaults to 'true').
+    if: github.event_name == 'release' && needs.prepare.outputs.version_ok == 'true'
     permissions:
       contents: write
     steps:
@@ -181,16 +200,22 @@ jobs:
   # ===========================================================================
   publish-modrinth:
     name: Publish to Modrinth (${{ matrix.loader }})
-    needs: [check-config, build]
+    needs: [check-config, prepare, build]
     runs-on: ubuntu-latest
-    if: needs.check-config.outputs.modrinth == 'true' && !inputs.dry_run
+    # Gated on: Modrinth configured, not a dry run, version passing the downgrade guard,
+    # and not already on Modrinth (version_exists is empty when the check was skipped).
+    if: >-
+      needs.check-config.outputs.modrinth == 'true' &&
+      !inputs.dry_run &&
+      needs.prepare.outputs.version_ok == 'true' &&
+      needs.prepare.outputs.version_exists != 'true'
     strategy:
       fail-fast: false
       # Serialize: parallel jobs hammer Modrinth's tag API and can get rate-limited (429),
       # which silently yields empty loaders/game_versions metadata on the published version.
       max-parallel: 1
       matrix:
-        loader: [fabric, forge]
+        include: ${{ fromJSON(needs.build.outputs.supported_versions) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -201,12 +226,21 @@ jobs:
           name: mod-jars
           path: artifacts
 
+      - name: Get game versions
+        id: game-versions
+        run: |
+          VERSIONS=$(jq -r '."${{ matrix.loader }}"."${{ matrix.minecraft }}" // ["${{ matrix.minecraft }}"] | .[]' artifacts/versions.json)
+          {
+            echo "list<<EOF"
+            echo "$VERSIONS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare upload
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
-          display-version: ${{ needs.build.outputs.display_version }}
+          display-version: ${{ matrix.minecraft }}
           mod-version: ${{ needs.build.outputs.mod_version }}
           is-prerelease: ${{ needs.build.outputs.is_prerelease }}
           artifact-path: artifacts
@@ -216,7 +250,7 @@ jobs:
         if: steps.prep.outputs.found == 'true'
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
         with:
-          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           files: ${{ steps.prep.outputs.jar_path }}
           name: ${{ steps.prep.outputs.version_name }}
@@ -226,9 +260,9 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.20.1' }}
+            ${{ steps.game-versions.outputs.list }}
           game-version-filter: any
-          changelog: ${{ github.event.release.body }}
+          changelog: ${{ needs.prepare.outputs.changelog_user }}
           modrinth-featured: false
           retry-attempts: 2
           retry-delay: 10000
@@ -238,14 +272,18 @@ jobs:
   # ===========================================================================
   publish-curseforge:
     name: Publish to CurseForge (${{ matrix.loader }})
-    needs: [check-config, build]
+    needs: [check-config, prepare, build]
     runs-on: ubuntu-latest
-    if: needs.check-config.outputs.curseforge == 'true' && !inputs.dry_run
+    # Only version_ok gates here; version_exists is Modrinth-specific.
+    if: >-
+      needs.check-config.outputs.curseforge == 'true' &&
+      !inputs.dry_run &&
+      needs.prepare.outputs.version_ok == 'true'
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
-        loader: [fabric, forge]
+        include: ${{ fromJSON(needs.build.outputs.supported_versions) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -256,12 +294,21 @@ jobs:
           name: mod-jars
           path: artifacts
 
+      - name: Get game versions
+        id: game-versions
+        run: |
+          VERSIONS=$(jq -r '."${{ matrix.loader }}"."${{ matrix.minecraft }}" // ["${{ matrix.minecraft }}"] | .[]' artifacts/versions.json)
+          {
+            echo "list<<EOF"
+            echo "$VERSIONS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare upload
         id: prep
         uses: ./.github/actions/prepare-modrinth-upload
         with:
-          archives-base-name: ${{ vars.ARCHIVES_BASE || github.event.repository.name }}
-          display-version: ${{ needs.build.outputs.display_version }}
+          display-version: ${{ matrix.minecraft }}
           mod-version: ${{ needs.build.outputs.mod_version }}
           is-prerelease: ${{ needs.build.outputs.is_prerelease }}
           artifact-path: artifacts
@@ -271,7 +318,7 @@ jobs:
         if: steps.prep.outputs.found == 'true'
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3
         with:
-          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: ${{ steps.prep.outputs.jar_path }}
           name: ${{ steps.prep.outputs.version_name }}
@@ -281,9 +328,9 @@ jobs:
             ${{ matrix.loader }}
             ${{ matrix.loader == 'fabric' && 'quilt' || '' }}
           game-versions: |
-            ${{ vars.GAME_VERSIONS || '1.20.1' }}
+            ${{ steps.game-versions.outputs.list }}
           game-version-filter: any
-          changelog: ${{ github.event.release.body }}
+          changelog: ${{ needs.prepare.outputs.changelog_user }}
           retry-attempts: 2
           retry-delay: 10000
           # Warn (don't fail) when CurseForge lacks a game version yet, e.g. a brand-new
