@@ -59,8 +59,12 @@ legacyForge {
 //      names at runtime; without it the @Inject targets never resolve in a reobf'd jar.
 //   2. The `MixinConfigs` manifest attribute (set on tasks.jar below) — classic Forge registers
 //      mixin configs from that manifest entry.
-// InventoryMixin lives in the main source set (common main sources are srcDir'd into main), so the
-// refmap is generated for main. The client config declares no client mixins, so it needs none.
+// Every mixin class ends up in the main source set (common main AND common client sources are
+// srcDir'd into main above), so `add(sourceSets.main, ...)` runs the AP over all of them and the
+// single main refmap covers both configs. The client config travels the same way: common's client
+// RESOURCES are srcDir'd into main's resources too, so `free-my-hotbar.client.mixins.json` is
+// stamped with the refmap name by `processResources` below. The `processClientResources` block is
+// only for forge's own client source set, which ships no mixin configs of its own today.
 mixin {
     config("free-my-hotbar.mixins.json")
     config("free-my-hotbar.client.mixins.json")

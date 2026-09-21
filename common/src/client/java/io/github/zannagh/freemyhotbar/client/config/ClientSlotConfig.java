@@ -16,6 +16,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import io.github.zannagh.freemyhotbar.FreeMyHotbar;
+import io.github.zannagh.freemyhotbar.client.HotbarEvictor;
+import io.github.zannagh.freemyhotbar.config.ConfigSchema;
+import io.github.zannagh.freemyhotbar.config.FallbackMode;
 import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 import net.minecraft.client.Minecraft;
 
@@ -30,7 +33,7 @@ import net.minecraft.client.Minecraft;
 public final class ClientSlotConfig {
 
     /** Current on-disk schema version. */
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = ConfigSchema.CURRENT_VERSION;
 
     private static final int SLOT_COUNT = SlotBlock.HOTBAR_SLOT_COUNT;
     private static final String FILE_NAME = "free-my-hotbar.json";
@@ -39,6 +42,10 @@ public final class ClientSlotConfig {
 
     private final Set<SlotBlock> blocked = new LinkedHashSet<>();
 
+    private FallbackMode fallbackMode = FallbackMode.DEFAULT;
+    private boolean blockGuiInteractions = ConfigSchema.DEFAULT_BLOCK_GUI_INTERACTIONS;
+    private boolean evictImmediately = ConfigSchema.DEFAULT_EVICT_IMMEDIATELY;
+
     private transient Consumer<List<SlotBlock>> syncCallback = s -> {
     };
 
@@ -46,6 +53,17 @@ public final class ClientSlotConfig {
     private static final class Data {
         int configVersion = CURRENT_VERSION;
         List<SlotBlock> slots;
+        /**
+         * Schema v3: what to do on a server without the mod; null means "absent". Stored as a
+         * String rather than the enum so {@link FallbackMode#parse} owns the read: Gson's enum
+         * adapter is case-sensitive and silently yields null for anything it does not recognise,
+         * which would turn a hand-edited {@code "move_or_drop"} into the default without a word.
+         */
+        String fallbackMode;
+        /** Schema v3: suppress own clicks into locked slots; boxed so a null means "absent". */
+        Boolean blockGuiInteractions;
+        /** Schema v3: bypass the eviction movement gate; boxed so a null means "absent". */
+        Boolean evictImmediately;
         /** Legacy v1 field: boxed so a null means "absent". Read only during migration. */
         Integer mask;
     }
@@ -65,30 +83,39 @@ public final class ClientSlotConfig {
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             Data data = GSON.fromJson(reader, Data.class);
             if (data != null) {
-                if (data.slots != null) {
-                    for (SlotBlock slot : SlotBlock.blockedOnly(data.slots)) {
-                        if (slot.slotId() >= 0 && slot.slotId() < SLOT_COUNT) {
-                            config.blocked.add(slot);
-                        }
-                    }
-                } else if (data.mask != null) {
-                    // legacy v1 mask migration: decode the low SLOT_COUNT bits into slot ids.
-                    for (int id = 0; id < SLOT_COUNT; id++) {
-                        if (((data.mask >> id) & 1) != 0) {
-                            config.blocked.add(new SlotBlock(id, true));
-                        }
-                    }
-                    migrated = true;
-                }
+                config.apply(data);
+                migrated = ConfigSchema.needsRewrite(data.configVersion) || data.mask != null;
             }
         } catch (Exception e) {
             FreeMyHotbar.LOGGER.warn("Failed to read {}, using defaults", FILE_NAME, e);
         }
         if (migrated) {
-            // Rewrite in the current (v2) format so the legacy mask field is dropped on disk.
+            // Rewrite in the current format so legacy fields are dropped and new ones persisted.
             config.save();
         }
         return config;
+    }
+
+    /** Copies one loaded file into this instance, migrating older schemas as it goes. */
+    private void apply(Data data) {
+        if (data.slots != null) {
+            addBlocked(SlotBlock.blockedOnly(data.slots));
+        } else if (data.mask != null) {
+            // legacy v1 mask migration: decode the low SLOT_COUNT bits into slot ids.
+            addBlocked(ConfigSchema.decodeLegacyMask(data.mask, SLOT_COUNT));
+        }
+        // v2 -> v3: both fields are absent in older files and fall back to their defaults.
+        fallbackMode = FallbackMode.parse(data.fallbackMode);
+        blockGuiInteractions = ConfigSchema.blockGuiInteractionsOrDefault(data.blockGuiInteractions);
+        evictImmediately = ConfigSchema.evictImmediatelyOrDefault(data.evictImmediately);
+    }
+
+    private void addBlocked(Collection<SlotBlock> slots) {
+        for (SlotBlock slot : slots) {
+            if (slot.blocked() && slot.slotId() >= 0 && slot.slotId() < SLOT_COUNT) {
+                blocked.add(slot);
+            }
+        }
     }
 
     /** Writes the current state to disk; failures are logged but never thrown. */
@@ -100,6 +127,9 @@ public final class ClientSlotConfig {
         Data data = new Data();
         data.configVersion = CURRENT_VERSION;
         data.slots = slots();
+        data.fallbackMode = fallbackMode.name();
+        data.blockGuiInteractions = blockGuiInteractions;
+        data.evictImmediately = evictImmediately;
         try {
             Files.createDirectories(path.getParent());
             try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
@@ -146,6 +176,9 @@ public final class ClientSlotConfig {
             blocked.add(b);
         }
         save();
+        // The fallback's per-slot drop budget is a judgement about the slots as they were; the
+        // player just changed them, so give it a clean slate.
+        HotbarEvictor.reset();
         syncCallback.accept(slots());
     }
 
@@ -157,13 +190,82 @@ public final class ClientSlotConfig {
      */
     public void setBlocked(Collection<SlotBlock> in) {
         blocked.clear();
-        for (SlotBlock slot : SlotBlock.blockedOnly(in)) {
-            if (slot.slotId() >= 0 && slot.slotId() < SLOT_COUNT) {
-                blocked.add(slot);
-            }
-        }
+        addBlocked(SlotBlock.blockedOnly(in));
         save();
+        HotbarEvictor.reset();
         syncCallback.accept(slots());
+    }
+
+    /**
+     * Returns whether any hotbar slot is currently locked.
+     *
+     * @return true when at least one slot is blocked.
+     */
+    public boolean hasBlockedSlots() {
+        return !blocked.isEmpty();
+    }
+
+    /**
+     * Returns the client-only fallback behaviour used on servers without the mod.
+     *
+     * @return the configured mode, never null.
+     */
+    public FallbackMode fallbackMode() {
+        return fallbackMode;
+    }
+
+    /**
+     * Sets the client-only fallback behaviour and saves.
+     *
+     * @param mode the new mode; null resets to the default.
+     */
+    public void setFallbackMode(FallbackMode mode) {
+        fallbackMode = FallbackMode.orDefault(mode);
+        save();
+        HotbarEvictor.reset();
+    }
+
+    /**
+     * Returns whether the player's own clicks into locked slots are suppressed in inventory screens.
+     *
+     * @return true when GUI interactions with locked slots are blocked.
+     */
+    public boolean blockGuiInteractions() {
+        return blockGuiInteractions;
+    }
+
+    /**
+     * Sets whether the player's own clicks into locked slots are suppressed, and saves.
+     *
+     * @param value the new setting.
+     */
+    public void setBlockGuiInteractions(boolean value) {
+        blockGuiInteractions = value;
+        save();
+    }
+
+    /**
+     * Returns whether the fallback evictor may click while the player is moving.
+     *
+     * <p>Off by default. The movement gate exists because anti-cheat plugins cancel container
+     * clicks sent by a moving player; turning it off evicts sooner but can make evictions silently
+     * fail on such servers. See {@code EvictionPolicy.clickGateOpen}.
+     *
+     * @return true when the movement gate is bypassed.
+     */
+    public boolean evictImmediately() {
+        return evictImmediately;
+    }
+
+    /**
+     * Sets whether the fallback evictor bypasses the movement gate, and saves.
+     *
+     * @param value the new setting.
+     */
+    public void setEvictImmediately(boolean value) {
+        evictImmediately = value;
+        save();
+        HotbarEvictor.reset();
     }
 
     /**

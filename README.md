@@ -1,172 +1,104 @@
-# Minecraft Mod Template
+# Free My Hotbar
 
-A GitHub **template repository** for building a multi-loader Minecraft mod. One codebase compiles for **Fabric** and **Forge** via [Stonecutter](https://stonecutter.kikugie.dev/), with an optional [PaperMC](https://papermc.io/) server plugin, a plain-JVM smoke-test suite, and CI wired for building, code scanning, and (dormant) publishing to Modrinth and CurseForge.
+[![Latest](https://img.shields.io/github/v/release/zannagh/Free-My-Hotbar?logo=github&label=Latest%20Release&color=green)](https://github.com/zannagh/Free-My-Hotbar/releases)
+[![LatestPre](https://img.shields.io/github/v/release/zannagh/Free-My-Hotbar?include_prereleases&label=Latest%20(Pre)Release&logo=github)](https://github.com/zannagh/Free-My-Hotbar/releases)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/AMwbYqdmQb)
 
-Create your own repository from this one, and a bootstrap step rewrites the placeholder identity into your mod's name. Nothing here carries a personal namespace — the template ships with neutral placeholders (`free-my-hotbar` / `io.github.zannagh.freemyhotbar` / `FreeMyHotbar`) that the rename step replaces.
+[![Modrinth Downloads](https://img.shields.io/modrinth/dt/free-my-hotbar?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/free-my-hotbar)
+[![Curseforge Downloads](https://img.shields.io/curseforge/dt/1695040?logo=curseforge&style=flat&label=CurseForge)](https://www.curseforge.com/minecraft/mc-mods/free-my-hotbar)
 
-## What you get
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/zannagh/Free-My-Hotbar/build.yml?branch=main&label=Build)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/zannagh/Free-My-Hotbar/smoke.yml?branch=main&label=Smoke)
 
-- **Multi-loader from one source**: Fabric + Forge (classic MinecraftForge, not NeoForge — NeoForge only exists for MC 1.20.2+), built with Stonecutter `0.9.1`.
-- **Shared `common` module**: loader-agnostic code inherited by each loader.
-- **Optional Paper plugin**: a Bukkit server-side plugin subproject you can keep or remove in one command.
-- **Smoke tests**: fast plain-JVM JUnit invariants that catch a broken project.
-- **CI out of the box**: build validation, smoke tests, CodeQL scanning, and release publishing.
-- **Convention plugins in `buildSrc/`**: build logic lives in one place, no copy-paste across loaders.
-- **Toolchain**: Java 17, Gradle wrapper `9.7.0`, one Minecraft version shipped (`1.20.1`).
+<p align="center">
+A no-dependency mod that lets you lock individual hotbar slots so items stop landing in them - keep your sword, pickaxe and food where you put them and let the cobblestone find its own place. Available for Fabric and Forge. Minecraft decides item pickup on the server, so with the mod installed server-side your locked slots are truly skipped; installed on the client alone it falls back to moving items straight back out again.
+</p>
 
-## Getting started
+### Features
 
-Pick one of two paths.
+Free My Hotbar keeps the slots you care about under your control. Pickup is decided by the server, so the mod syncs your locked slots when the server has it installed - and in singleplayer, where your own game *is* the server, it works on its own.
 
-### a. "Use this template" (recommended)
+* **Per-slot locking** for all nine hotbar slots - a locked slot is skipped when items are picked up, including partial stacking into a slot that already holds the same item
+* **In-game lock screen** with a 3x3 grid of toggles, opened by a keybind (default `H`)
+* **Items stay on the ground** when every unlocked slot is full, instead of being crammed into a locked one - in singleplayer and on servers running the mod
+* **Works on servers without the mod too**, by picking the item up and immediately moving it back out of the locked slot (see *Servers without the mod* below)
+* **Optional lock-screen protection** for your own clicks, so you don't drop something into a locked slot by hand
+* **Multiplayer sync** - your locked slots are sent to servers running the mod, and re-sent on every login
+* **Optional on the server side** - a server without the mod simply ignores the channel and won't reject your client
+* **Persistent config** stored in `config/free-my-hotbar.json`, with automatic migration of older config versions
+* **Fabric and Forge** from one codebase, no other mods required
 
-1. Click **Use this template** on GitHub and create a new repository.
-2. On the first push to the default branch, the included **bootstrap** workflow runs. It:
-   - derives your mod's names from the **new repository name** and **owner**,
-   - sets the base package to `io.github.<owner>.<modname>`,
-   - runs the rename in place and **commits the rewritten project**,
-   - removes the rename tooling and the bootstrap workflow itself.
+#### Servers without the mod
 
-> The bootstrap commit is authored by `github-actions[bot]`, and a bot commit does **not** re-trigger CI. Your next push (or opening a PR) is what kicks off the build. The bootstrap only runs while the project is still un-initialized — once the rename tooling is gone, it does nothing.
+Minecraft decides item pickup entirely on the server, and a client has no say in it. When the server runs Free My Hotbar, locked slots are genuinely skipped and the item stays on the ground. When it doesn't, the mod can only react: the item lands in your locked slot and is moved straight back out into your main inventory.
 
-The repository name is the only "template variable" GitHub gives you, so the derived display name matches the repo name. If you want a display name the repo name can't express, or a custom package/group, use the manual path instead.
+That fallback is on by default and honest about its limits:
 
-### b. Manual / local rename
+* You may briefly see the item in the locked slot before it moves.
+* Servers running anti-cheat can reject inventory changes sent while you're moving, so the mod waits for a moment when you're standing still. There's a **Move items out immediately** option if your server doesn't mind - it's off by default.
+* If your main inventory is completely full there's nowhere to move the item, so it stays put. An opt-in **drop it on the ground** mode handles that case instead, at the cost of the item being lootable by anyone nearby.
+* The lock screen tells you which mode you're in on the server you're currently connected to.
 
-Clone your new repository (or this one), then run the rename script once and delete it (it offers to remove itself).
+#### Scope
 
-```bash
-# Bash (macOS / Linux)
-./adjust-names.sh --name "My Cool Mod" --owner my-github-user
-```
+Locking is about **automatic item pickup**. Moving items into a locked slot yourself - shift-clicking from a container, dragging, or hotbar-swapping - is allowed by default, so a locked slot never blocks you from using your own inventory. If you'd rather your locked slots refuse those too, turn on **Block my own clicks** in the lock screen; taking items back *out* always stays possible.
 
-```powershell
-# PowerShell (Windows)
-.\adjust-names.ps1 -Name "My Cool Mod" -Owner my-github-user
-```
+*If you run into a conflict with another mod, datapack or plugin, please open an issue on GitHub or drop a message on the Discord server.*
 
-#### Flags
+[![OpenBugs](https://img.shields.io/github/issues-search?query=repo%3Azannagh%2FFree-My-Hotbar%20is%3Aopen%20label%3Abug&logo=github&label=Open%20Bugs&color=red
+)](https://github.com/zannagh/Free-My-Hotbar/issues)
+[![OpenFRs](https://img.shields.io/github/issues-search?query=repo%3Azannagh%2FFree-My-Hotbar%20is%3Aopen%20label%3Aenhancement&logo=github&label=Open%20Feature%20Requests&color=green
+)](https://github.com/zannagh/Free-My-Hotbar/issues)
+[![ClosedIssues](https://img.shields.io/github/issues-closed/zannagh/Free-My-Hotbar?label=Closed%20Issues&color=green&logo=github)](https://github.com/zannagh/Free-My-Hotbar/issues)
 
-| Flag | Description |
+I track issues and requests via [GitHub](https://github.com/zannagh/Free-My-Hotbar/issues) and do my best to close out any bugs timely. If you don't have an account, feel free to join the Discord server and let me know there.
+
+If you like my work and would like to support me, you can do so here:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K3K41VR5H1)
+
+---
+
+## Supported versions
+
+| Minecraft | Loaders |
 | --- | --- |
-| `--name <str>` | Mod name, free-form. **Required.** |
-| `--owner <str>` | Your GitHub user/org. Builds the package prefix `io.github.<owner>` and fills in repository URLs. |
-| `--package <pkg>` | Full base package override, e.g. `org.example.mymod`. Takes precedence over `--owner` / `--group-prefix`. |
-| `--group-prefix <p>` | Package prefix to use instead of `io.github.<owner>`. |
-| `--repo <name>` | Repository name for URLs (default: the derived kebab-case id). |
-| `--keep-tooling` | Do **not** delete `adjust-names.*` / the bootstrap workflow when finished. |
-| `-y`, `--yes` | Do not prompt for confirmation. |
-| `-h`, `--help` | Show help. |
+| 1.20.1 | Fabric, Forge |
 
-You must provide either `--owner` (to derive `io.github.<owner>.<modname>`) or an explicit `--package`.
+More game versions are planned - the project is set up for multi-version builds, so adding one is a configuration change rather than a fork.
 
-#### How a free-form name maps to identifiers
+## Community
 
-The script accepts one free-form `--name` and derives every form the project needs:
+Join the [Discord server](https://discord.gg/AMwbYqdmQb) for support, discussion, and feature requests.
 
-| Form | Example | Used for |
-| --- | --- | --- |
-| Display | `My Funny Minecraft Mod` | Human-readable name |
-| Fabric id (kebab) | `my-funny-minecraft-mod` | Fabric mod id, archive base name |
-| Forge id (snake) | `my_funny_minecraft_mod` | Forge mod id |
-| Package segment | `myfunnyminecraftmod` | Last segment of the Java package |
-| Class base (Pascal) | `MyFunnyMinecraftMod` | Main class names |
+## Issues and Feature Requests
 
-Both a kebab-case and a snake-case id exist because the loaders differ by convention: **Fabric** ids are kebab-case, **Forge** ids are snake_case — and Forge **forbids hyphens** in mod ids. The script validates the snake-case id against Forge's `^[a-z][a-z0-9_]{1,63}$` rule and rejects names that can't form a legal Java identifier.
+As mentioned before, feel free to create an issue on the [GitHub repository](https://github.com/zannagh/Free-My-Hotbar/issues) or reach out on [Discord](https://discord.gg/AMwbYqdmQb) to make me aware of problems or ideas that could make this mod better.
 
-## Project structure
-
-```
-your-mod/
-├── buildSrc/                 Convention plugins (multiloader-common, multiloader-loader, loom-*)
-├── common/                   Loader-agnostic shared code (main + client source sets)
-├── fabric/                   Fabric loader entry points and resources
-├── forge/                    Forge loader entry points and resources
-├── paper/                    Optional PaperMC/Bukkit server plugin (plain Gradle subproject)
-├── smoke/                    Plain-JVM JUnit smoke tests (not a loader variant)
-├── settings.gradle.kts       Stonecutter setup + subproject includes (:smoke, :paper)
-├── stonecutter.gradle.kts    Active version + the smokeTest task
-├── stonecutter.properties.toml   Mod identity + per-version / per-loader properties
-├── versions.json5            Stonecutter version/branch matrix
-├── gradle.properties         Shared Gradle/build settings
-├── adjust-names.sh / .ps1    One-shot rename tooling (removed after bootstrap)
-└── remove-paper.sh / .ps1    One-shot Paper-removal tooling
-```
-
-Mod identity (`maven_group`, `archives_base_name`), the Fabric `loader_version`, and each version's Java/Minecraft properties live in `stonecutter.properties.toml`, where Stonecutter injects them per variant.
-
-## Removing the Paper plugin
-
-If your mod has no server component, drop the Paper subproject in one command:
+## Building
 
 ```bash
-./remove-paper.sh          # Bash (macOS / Linux)
-.\remove-paper.ps1         # PowerShell (Windows)
+./gradlew build       # Build every active loader variant
+./gradlew smokeTest   # Run the plain-JVM JUnit smoke suite
 ```
 
-It deletes the `paper/` directory, removes the `include(":paper")` wiring from `settings.gradle.kts`, scans for any leftover `paper` references (warning only), and then deletes both removal scripts. It is one-shot, idempotent, and safe to re-run.
+Java 17 is required. Loader jars land under `fabric/versions/**/build/libs/` and `forge/versions/**/build/libs/`.
 
-## Building & running
+## Versioning & Releases
 
-```bash
-./gradlew build          # Compile + test every active loader variant; produces the loader jars
-./gradlew smokeTest      # Run the plain-JVM JUnit smoke suite (:smoke:test)
-./gradlew :paper:build   # Build the Paper plugin jar (if you kept it)
-```
+All Minecraft versions are built from the `main` branch using [Stonecutter](https://stonecutter.kikugie.dev/) for multi-version support. [GitVersion](https://gitversion.net/) handles semantic versioning automatically. On CI, the version property is passed to the gradle build.
 
-Loader jars land under `fabric/versions/**/build/libs/` and `forge/versions/**/build/libs/` (sources jars excluded).
+**Release flow:**
 
-### Switching / adding Minecraft versions
+* **Releases and prereleases** are created via GitHub Releases; publishing runs on a published release
+* All versions are published to [Modrinth](https://modrinth.com/mod/free-my-hotbar) and [CurseForge](https://www.curseforge.com/minecraft/mc-mods/free-my-hotbar) automatically once the release is published
+* The publish matrix is derived from the staged artifacts, so a new game version or loader needs no workflow edit
 
-The active variant is set in `stonecutter.gradle.kts`:
+**Version format:**
 
-```kotlin
-stonecutter active "fabric-1.20.1" /* [SC] DO NOT EDIT */
-```
+* Releases: `0.1.0`
+* Prereleases: `0.1.1-pre.1`, `0.1.1-pre.2`, etc.
 
-Stonecutter also generates tasks to switch it, e.g.:
+## License
 
-```bash
-./gradlew "Set active project to forge-1.20.1"
-```
-
-Then re-sync Gradle (e.g. in IntelliJ). To **add** a Minecraft version:
-
-1. Add the new version/branch entries to `versions.json5`.
-2. Add the matching `["<version>"]`, `["fabric-<version>"]`, and `["forge-<version>"]` blocks to `stonecutter.properties.toml`.
-3. Re-sync Gradle.
-
-## Publishing (dormant by default)
-
-The publish workflows do **nothing** until you configure them. Out of the box, a release build just builds the jars and attaches them to the GitHub Release using the built-in token — nothing is sent off-site.
-
-Enable a platform by adding its secret **and** variable in the repository's **Settings → Secrets and variables → Actions**. Each platform is independent — set up only the ones you use:
-
-| Platform | Required to enable |
-| --- | --- |
-| Modrinth | secret `MODRINTH_TOKEN` + variable `MODRINTH_PROJECT_ID` |
-| CurseForge | secret `CURSEFORGE_TOKEN` + variable `CURSEFORGE_PROJECT_ID` |
-
-Optional variables (with defaults tuned for the shipped `1.20.1` template):
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `GAME_VERSIONS` | `1.20.1` | Minecraft versions to tag on the published files |
-| `DISPLAY_VERSION` | `mc-1.20.1` | The `+<display>` segment in the jar names |
-| `ARCHIVES_BASE` | `free-my-hotbar` | Stonecutter `archives_base_name` |
-
-- **`publish.yml`** runs on a **published GitHub Release**, or via manual dispatch (which defaults to a `dry_run` that resolves metadata without uploading). It builds the jars, attaches them to the release, and publishes to any configured platform. With nothing configured it prints exactly which secrets/vars to set and exits cleanly.
-- **`publish-existing-release.yml`** is a dispatch-only, admin-restricted job that re-publishes jars already attached to an existing release (chosen by tag) to Modrinth and/or CurseForge **without rebuilding**.
-
-## Continuous integration
-
-The `.github/workflows/` directory ships with:
-
-| Workflow | Trigger | What it does |
-| --- | --- | --- |
-| `build.yml` | push to `main`, PRs | Compiles every loader variant and uploads the jars |
-| `smoke.yml` | push to `main`, PRs | Runs the `smokeTest` suite separately from the build gate |
-| `codeql.yml` | push/PR to `main`, weekly | CodeQL security-and-quality scanning (`java-kotlin`) |
-| `publish.yml` | published release, dispatch | Builds, attaches to the release, publishes if configured |
-| `publish-existing-release.yml` | dispatch | Re-publishes an existing release's jars without rebuilding |
-| `bootstrap.yml` | first push after "Use this template" | One-shot rename; self-removes |
+[MIT](LICENSE)

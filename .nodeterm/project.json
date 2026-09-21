@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "rev": 37,
+  "savedAt": "2026-09-21T13:49:14.546Z",
+  "id": "project-u5mniz",
+  "name": "Free-My-Hotbar",
+  "color": "#0a84ff",
+  "viewport": {
+    "x": 614.9065765412015,
+    "y": 467.520848340713,
+    "zoom": 1
+  },
+  "nodes": [
+    {
+      "id": "term-mub8f883-efe20849",
+      "kind": "terminal",
+      "position": {
+        "x": 153.1251859140824,
+        "y": -387.520848340713
+      },
+      "size": {
+        "width": 981,
+        "height": 580
+      },
+      "title": "Mod client-side functionality",
+      "titleAuto": true,
+      "color": "#d97757",
+      "group": null,
+      "tags": [],
+      "collapsed": false,
+      "cwd": ".",
+      "agentId": "claude",
+      "agentSessionId": "5d27b71c-27f4-4e00-85f0-ece3ff7d4666"
+    },
+    {
+      "id": "browser-mub8fnbk-13af3040",
+      "kind": "browser",
+      "position": {
+        "x": 1336.2355453057864,
+        "y": -253.13778729299872
+      },
+      "size": {
+        "width": 1811,
+        "height": 1126
+      },
+      "title": "zannagh/Free-My-Hotbar: A small minecraft mod to keep inventory slots reserved for certain items.",
+      "titleAuto": true,
+      "color": "#0a84ff",
+      "group": null,
+      "collapsed": false,
+      "url": "https://github.com/zannagh/Free-My-Hotbar"
+    },
+    {
+      "id": "term-mubax7jo-7848d45a",
+      "kind": "terminal",
+      "position": {
+        "x": -534.9065765412015,
+        "y": 203.6891736816208
+      },
+      "size": {
+        "width": 640,
+        "height": 440
+      },
+      "title": "Terminal 3",
+      "color": "#ffd60a",
+      "group": null,
+      "tags": [],
+      "cwd": "."
+    }
+  ],
+  "bridges": [],
+  "ropes": []
+}
