@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -32,12 +33,16 @@ import org.junit.jupiter.api.Test;
 class FmhPacketsTest {
 
     /**
-     * The channel key as it was first shipped. It is the handshake token a server advertises and
-     * the client reads back to decide whether locks are enforced server-side, so changing it
-     * breaks every already-released build in both directions. Pinned as a literal on purpose: if
-     * a refactor moves the namespace or the path, this test — not a player — finds out.
+     * The channel key as it ships with the eunomia wire format. It is the handshake token a server
+     * advertises and the client reads back to decide whether locks are enforced server-side, so
+     * changing it breaks every already-released build in both directions. Pinned as a literal on
+     * purpose: if a refactor moves the namespace or the path, this test — not a player — finds out.
+     *
+     * <p>The {@code _v2} suffix is the deliberate wire break: the payload went from a hand-rolled
+     * VarInt encoding to gzip(JSON), and versioning the path is what stops an old client's binary
+     * payload from being routed into the JSON decoder. There is no legacy decoder by design.
      */
-    private static final String CHANNEL_KEY = "free-my-hotbar:locked_slots";
+    private static final String CHANNEL_KEY = "free-my-hotbar:locked_slots_v2";
 
     @BeforeAll
     static void registerHandler() {
@@ -49,7 +54,7 @@ class FmhPacketsTest {
     void channelKeyIsStable() {
         assertEquals(CHANNEL_KEY, FmhPackets.LOCKED_SLOTS.channelKey());
         assertEquals(FreeMyHotbar.MOD_ID, FmhPackets.LOCKED_SLOTS.namespace());
-        assertEquals("locked_slots", FmhPackets.LOCKED_SLOTS.path());
+        assertEquals("locked_slots_v2", FmhPackets.LOCKED_SLOTS.path());
     }
 
     @Test
@@ -121,6 +126,50 @@ class FmhPacketsTest {
 
         assertFalse(dispatched);
         assertTrue(SlotLockState.blocked(sender).isEmpty());
+    }
+
+    /**
+     * The cardinality bound. The hand-rolled decoder this format replaced refused a count above 64
+     * while reading the wire; gzip(JSON) carries no such notion, and eunomia accepts roughly 32 KiB
+     * gzipped / 64 MiB inflated serverbound — room for a hostile client to have the server walk an
+     * enormous slot list over and over. The bound has to be re-applied on the decoded payload, and
+     * an oversized one is dropped whole rather than sanitized down to its valid entries.
+     */
+    @Test
+    @DisplayName("an oversized slot list is dropped whole, not sanitized")
+    void oversizedPayloadIsDropped() {
+        UUID sender = UUID.randomUUID();
+        SlotLockState.remove(sender);
+        List<SlotBlock> flood = new ArrayList<>();
+        for (int i = 0; i < LockedSlotsPayload.MAX_SLOTS * 500; i++) {
+            flood.add(new SlotBlock(i % SlotBlock.HOTBAR_SLOT_COUNT, true));
+        }
+        byte[] hostile = PayloadCodec.encode(new LockedSlotsPayload(flood), true);
+
+        CommunicationManager.dispatchServerboundRaw(CHANNEL_KEY, hostile, new TestServerContext(sender));
+
+        assertTrue(SlotLockState.blocked(sender).isEmpty(),
+                "not one entry of an over-long payload may be stored");
+        SlotLockState.remove(sender);
+    }
+
+    @Test
+    @DisplayName("a payload of exactly one entry per hotbar slot is still accepted")
+    void maximumSizedPayloadIsAccepted() {
+        UUID sender = UUID.randomUUID();
+        SlotLockState.remove(sender);
+        List<SlotBlock> full = new ArrayList<>();
+        for (int slot = 0; slot < SlotBlock.HOTBAR_SLOT_COUNT; slot++) {
+            full.add(new SlotBlock(slot, true));
+        }
+        byte[] encoded = PayloadCodec.encode(new LockedSlotsPayload(full), true);
+
+        boolean dispatched = CommunicationManager.dispatchServerboundRaw(
+                CHANNEL_KEY, encoded, new TestServerContext(sender));
+
+        assertTrue(dispatched);
+        assertEquals(SlotBlock.HOTBAR_SLOT_COUNT, SlotLockState.blocked(sender).size());
+        SlotLockState.remove(sender);
     }
 
     private static byte[] gzip(String json) {

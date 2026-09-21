@@ -11,8 +11,18 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/zannagh/Free-My-Hotbar/smoke.yml?branch=main&label=Smoke)
 
 <p align="center">
-A no-dependency mod that lets you lock individual hotbar slots so items stop landing in them - keep your sword, pickaxe and food where you put them and let the cobblestone find its own place. Available for Fabric and Forge. Minecraft decides item pickup on the server, so with the mod installed server-side your locked slots are truly skipped; installed on the client alone it falls back to moving items straight back out again.
+A mod that lets you lock individual hotbar slots so items stop landing in them - keep your sword, pickaxe and food where you put them and let the cobblestone find its own place. Available for Fabric and Forge. Minecraft decides item pickup on the server, so with the mod installed server-side your locked slots are truly skipped; installed on the client alone it falls back to moving items straight back out again.
 </p>
+
+> [!IMPORTANT]
+> **Free My Hotbar requires [eunomia](https://modrinth.com/mod/eunomia) (0.3.14 or newer).**
+> It is a hard dependency on both Fabric and Forge, declared in the loader manifests, so the game
+> will refuse to start with Free My Hotbar installed on its own. Install eunomia for your loader
+> alongside it. Nothing else is needed.
+>
+> On the **server** eunomia is only needed if the server runs Free My Hotbar as well; a server
+> without either still works, your client just falls back to moving items back out (see
+> *Servers without the mod*).
 
 ### Features
 
@@ -22,11 +32,11 @@ Free My Hotbar keeps the slots you care about under your control. Pickup is deci
 * **In-game lock screen** with a 3x3 grid of toggles, opened by a keybind (default `H`)
 * **Items stay on the ground** when every unlocked slot is full, instead of being crammed into a locked one - in singleplayer and on servers running the mod
 * **Works on servers without the mod too**, by picking the item up and immediately moving it back out of the locked slot (see *Servers without the mod* below)
-* **Optional lock-screen protection** for your own clicks, so you don't drop something into a locked slot by hand
+* **Protection against your own clicks**, on by default, so you don't drop something into a locked slot by hand - switchable in the lock screen
 * **Multiplayer sync** - your locked slots are sent to servers running the mod, and re-sent on every login
 * **Optional on the server side** - a server without the mod simply ignores the channel and won't reject your client
 * **Persistent config** stored in `config/free-my-hotbar.json`, with automatic migration of older config versions
-* **Fabric and Forge** from one codebase, no other mods required
+* **Fabric and Forge** from one codebase - the only thing to install alongside it is [eunomia](https://modrinth.com/mod/eunomia), which supplies the networking and config framework
 
 #### Servers without the mod
 
@@ -41,7 +51,11 @@ That fallback is on by default and honest about its limits:
 
 #### Scope
 
-Locking is about **automatic item pickup**. Moving items into a locked slot yourself - shift-clicking from a container, dragging, or hotbar-swapping - is allowed by default, so a locked slot never blocks you from using your own inventory. If you'd rather your locked slots refuse those too, turn on **Block my own clicks** in the lock screen; taking items back *out* always stays possible.
+Locking is about **automatic item pickup**, but it does not stop there.
+
+**Block my own clicks** is **on** by default: placing an item into a locked slot with a plain click, a drag, a number-key swap or the offhand key is refused while it is on. Taking items back *out* always stays possible - locking a slot never holds its contents hostage - and you can turn the setting off in the lock screen if you'd rather your locked slots accept your own placements.
+
+**Shift-clicking is the one case neither setting controls.** When you shift-click a stack in a chest, the *server* decides where it goes and may well pick a locked hotbar slot; your client has no say in that and blocking the click would only stop you from moving your own items. On a server running the mod the locked slot is skipped outright. On a server without it, the client-side fallback treats the stack like any other arrival and moves it back out for you - the same handling automatic pickup gets. Items you placed in a locked slot deliberately, with the setting off, are left exactly where you put them.
 
 *If you run into a conflict with another mod, datapack or plugin, please open an issue on GitHub or drop a message on the Discord server.*
 

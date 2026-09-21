@@ -114,6 +114,39 @@ public final class LockedSlots {
                 swapSourceHasItem);
     }
 
+    /**
+     * Applies the inbound-only lock policy to one slot click, and remembers a placement the player
+     * was allowed to make.
+     *
+     * <p>Both halves come from the same judgement. {@link GuiInteractionPolicy#blocks} is exactly
+     * "this click would put an item INTO a locked slot": with the guard on that click is cancelled,
+     * with it off it is the player deliberately naming that slot as a destination, and the
+     * client-side evictor must not quick-move the item straight back out again. A shift-click is
+     * not one of these — the player names a source there and the menu picks the destination — so it
+     * stays an unexplained arrival and is evicted, which is the only handling available for it.
+     *
+     * @param slot the slot under the cursor; may be null (a click outside the window).
+     * @param button the vanilla button argument of the click.
+     * @param type the vanilla click type.
+     * @return true when the click must be cancelled.
+     */
+    public static boolean onSlotClicked(Slot slot, int button, ClickType type) {
+        GuiClick click = describe(slot, button, type);
+        if (!GuiInteractionPolicy.blocks(click)) {
+            return false;
+        }
+        if (guardActive()) {
+            return true;
+        }
+        if (click.hoveredLocked()) {
+            HotbarEvictor.notePlayerPlacement(hotbarIndex(slot));
+        }
+        if (click.swapSourceLocked()) {
+            HotbarEvictor.notePlayerPlacement(GuiInteractionPolicy.swapSourceSlot(button));
+        }
+        return false;
+    }
+
     /** Resolves a creative Inventory-tab slot wrapper to the real menu slot it stands for. */
     private static Slot unwrap(Slot slot) {
         if (slot instanceof CreativeSlotWrapperAccessor wrapper) {

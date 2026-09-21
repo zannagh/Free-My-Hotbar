@@ -3,12 +3,14 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.Directory
 import org.gradle.api.provider.Provider
+import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.TaskProvider
 import java.io.File
 
 private const val EUNOMIA_RUNTIME_MOD_CONFIGURATION = "eunomiaRuntimeMod"
 private const val COPY_EUNOMIA_TASK = "copyEunomiaToMods"
+private const val CLEAN_EUNOMIA_TASK = "cleanEunomiaFromMods"
 
 /**
  * Registers `copyEunomiaToMods`, which drops the eunomia MOD jar into this variant's dev-run
@@ -32,6 +34,13 @@ private const val COPY_EUNOMIA_TASK = "copyEunomiaToMods"
  * Returns null when nothing could be resolved.
  */
 fun Project.registerCopyEunomiaToMods(modsDir: Provider<Directory>): TaskProvider<Copy>? {
+    // Registered and wired FIRST, and unconditionally: the stale-jar cleanup must not be able to
+    // disappear along with the copy. See [registerCleanTask].
+    val cleanTask = registerCleanTask(modsDir)
+    tasks.matching { it.name == "runClient" || it.name == "runServer" }.configureEach {
+        dependsOn(cleanTask)
+    }
+
     val overrideJar = prop("eunomia.$loader.jar")
     if (overrideJar != null) {
         // Checked eagerly, and deliberately so. A Copy whose source does not exist is skipped as
@@ -93,26 +102,49 @@ private fun Project.resolveLeniently(configuration: Configuration, modrinthId: S
 }
 
 /**
- * The shared Copy shape. Never up-to-date: Loom's run dir lives inside `build/`, so a `clean`
- * silently empties it while the task's outputs still look current. The `doFirst` delete keeps
- * exactly one eunomia jar in the dir — a version bump or a switch between the local override and
- * the Modrinth jar changes the file name, and TWO eunomia mods load both copies of the codec
+ * Registers the stale-jar cleanup as a task of its OWN, rather than as a `doFirst` on the copy.
+ *
+ * The dir must hold exactly one eunomia jar: a version bump, or a switch between the local override
+ * and the Modrinth jar, changes the file name, and TWO eunomia mods load both copies of the codec
  * mixins, which double-applies them and breaks the handshake.
+ *
+ * A `doFirst` cannot carry that guarantee. When the Modrinth lookup fails, [resolveLeniently]
+ * hands the copy an empty source, Gradle marks it NO-SOURCE and skips ALL of its actions — the
+ * `doFirst` delete included. The old jar then survives and the dev run boots stale eunomia instead
+ * of failing on the missing dependency the way the warning promises. A separate task has no source
+ * to be skipped with; it always runs, whether or not anything is copied afterwards.
+ */
+private fun Project.registerCleanTask(modsDir: Provider<Directory>): TaskProvider<Task> {
+    return tasks.register(CLEAN_EUNOMIA_TASK) {
+        group = "verification"
+        description = "Remove any eunomia mod jar from the dev run mods dir before a run."
+        // A doLast on a task that declares no outputs, rather than a Delete: Loom's run dir lives
+        // inside `build/`, so nothing about this is safe to call up-to-date.
+        outputs.upToDateWhen { false }
+        doLast {
+            delete(fileTree(modsDir) { include("eunomia*.jar") })
+        }
+    }
+}
+
+/**
+ * The shared Copy shape. Never up-to-date: Loom's run dir lives inside `build/`, so a `clean`
+ * silently empties it while the task's outputs still look current. The cleanup it depends on is a
+ * task of its own so a NO-SOURCE copy cannot skip it — see [registerCleanTask].
  */
 private fun Project.registerCopyTask(
     modsDir: Provider<Directory>,
     taskDescription: String,
     source: () -> Any
 ): TaskProvider<Copy> {
+    val cleanTask = tasks.named(CLEAN_EUNOMIA_TASK)
     return tasks.register(COPY_EUNOMIA_TASK, Copy::class.java) {
         group = "verification"
         description = taskDescription
+        dependsOn(cleanTask)
         from(provider(source))
         into(modsDir)
         outputs.upToDateWhen { false }
-        doFirst {
-            delete(fileTree(modsDir) { include("eunomia*.jar") })
-        }
     }
 }
 

@@ -1,9 +1,12 @@
 package io.github.zannagh.freemyhotbar.client;
 
+import java.util.Arrays;
+
 import io.github.zannagh.freemyhotbar.config.FallbackMode;
 import io.github.zannagh.freemyhotbar.fallback.EvictionAction;
 import io.github.zannagh.freemyhotbar.fallback.EvictionPolicy;
 import io.github.zannagh.freemyhotbar.fallback.EvictionTracker;
+import io.github.zannagh.freemyhotbar.fallback.LockedSlotBaseline;
 import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.Input;
@@ -21,9 +24,13 @@ import net.minecraft.world.item.ItemStack;
  *
  * <p>Three things shape this:
  * <ul>
- *   <li><b>It only reacts to pickups.</b> {@link #onItemPickedUp(int)} arms the evictor from the
- *       {@code ClientboundTakeItemEntityPacket} for the local player, and eviction is suppressed
- *       while any screen is open - otherwise the mod would fight the player's own GUI placements.
+ *   <li><b>It only reacts to ARRIVALS, never to contents.</b> {@link LockedSlotBaseline} keeps a
+ *       rolling per-slot snapshot of the hotbar and only what grew against it is evicted, so the
+ *       sword in slot 0 survives a pickup into slot 5. That also closes the shift-click hole for
+ *       free: a quick-move in another container whose destination the server picks to be a locked
+ *       slot sends no take-item packet, but it does grow the slot. An arrival the player's own
+ *       click asked for is adopted instead of evicted - see {@link #notePlayerPlacement(int)} -
+ *       and eviction stays suppressed while any screen is open.
  *   <li><b>Anti-cheat is about movement, not rate.</b> GrimAC cancels container clicks sent while
  *       the player sprints, sneaks or holds a movement key, so by default clicks are queued and
  *       flushed only on a tick where the player stands still. The player can opt out of that with
@@ -58,6 +65,12 @@ public final class HotbarEvictor {
 
     private static final EvictionTracker TRACKER = new EvictionTracker(SlotBlock.HOTBAR_SLOT_COUNT);
 
+    private static final LockedSlotBaseline BASELINE =
+            new LockedSlotBaseline(SlotBlock.HOTBAR_SLOT_COUNT);
+
+    /** Which locked slots currently hold contents that arrived without the player asking. */
+    private static final boolean[] ARRIVALS = new boolean[SlotBlock.HOTBAR_SLOT_COUNT];
+
     /** One chat notice per connection when a slot's drop budget runs out. */
     private static boolean dropLimitNoticeSent;
 
@@ -66,6 +79,10 @@ public final class HotbarEvictor {
 
     /**
      * Arms the evictor when the local player is the one who picked an item up.
+     *
+     * <p>A hint, no longer the trigger: what gets evicted is decided by the baseline diff in
+     * {@link #scan}, which sees the arrival whether or not a take-item packet announced it. The
+     * packet still opens the window a tick earlier than the scan would.
      *
      * @param collectorEntityId the entity id from the take-item packet.
      */
@@ -77,15 +94,36 @@ public final class HotbarEvictor {
         }
     }
 
+    /**
+     * Records that the player's own click named a locked hotbar slot as its destination, so what
+     * lands there is adopted into the baseline rather than evicted straight back out.
+     *
+     * <p>Only for the clicks {@code blockGuiInteractions} governs and only when that setting is
+     * OFF: with it on the click never happens at all. A shift-click elsewhere in the menu is NOT
+     * such a click - the player names a source there, never a destination.
+     *
+     * @param slot the hotbar slot index; out-of-range values are ignored.
+     */
+    public static void notePlayerPlacement(int slot) {
+        BASELINE.notePlacement(slot);
+    }
+
     /** Drops all queued state; call on disconnect and whenever the player changes the config. */
     public static void reset() {
         TRACKER.reset();
+        BASELINE.reset();
+        Arrays.fill(ARRIVALS, false);
         dropLimitNoticeSent = false;
     }
 
     /**
-     * Runs one client tick of the evictor. Cheap to call unconditionally: it returns immediately
-     * unless the server lacks the mod, the fallback is enabled and a pickup is pending.
+     * Runs one client tick of the evictor: refreshes the hotbar baseline, arms on anything that
+     * arrived in a locked slot unasked, and flushes the eviction clicks when the gate is open.
+     *
+     * <p>The baseline is refreshed even when the fallback cannot act at all (server has the mod,
+     * fallback off, nothing locked). Skipping it there would leave a stale snapshot behind, and the
+     * moment the player locked a slot or joined a modless server the whole hotbar would read as a
+     * pile of fresh arrivals and be swept out from under them.
      *
      * @param minecraft the client instance; null is ignored.
      */
@@ -96,23 +134,62 @@ public final class HotbarEvictor {
         LocalPlayer player = minecraft.player;
         if (player == null) {
             TRACKER.reset();
+            BASELINE.reset();
+            Arrays.fill(ARRIVALS, false);
             return;
         }
         // Decay first and unconditionally: the pickup mixin arms the tracker whatever the config
         // says, so skipping this while the fallback is off would let a ten-minute-old pickup fire a
         // sweep the instant the player locks their first slot.
         TRACKER.tick();
-        if (ServerModPresence.state() != ServerModPresence.State.ABSENT) {
-            return;
-        }
         FallbackMode mode = FreeMyHotbarClient.config().fallbackMode();
-        if (mode == FallbackMode.OFF || !FreeMyHotbarClient.config().hasBlockedSlots()) {
+        boolean armed = ServerModPresence.state() == ServerModPresence.State.ABSENT
+                && mode != FallbackMode.OFF
+                && FreeMyHotbarClient.config().hasBlockedSlots();
+        boolean gateOpen = canClick(minecraft, player);
+        boolean anyArrival = scan(player, armed, gateOpen);
+        if (!anyArrival) {
+            TRACKER.clearPending();
             return;
         }
-        if (!TRACKER.ready() || !canClick(minecraft, player)) {
+        TRACKER.notePickup();
+        if (!TRACKER.ready() || !gateOpen) {
             return;
         }
         flush(minecraft, player, mode);
+    }
+
+    /**
+     * Compares every hotbar slot against the baseline, records which locked ones hold an
+     * unexplained arrival and re-baselines the rest.
+     *
+     * @param player the local player.
+     * @param armed whether the fallback may act at all on this connection.
+     * @param gateOpen whether an eviction click could be sent this tick; the pursuit budget of an
+     *     outstanding arrival only runs down on such ticks, so a player who is browsing a chest or
+     *     sprinting never loses an arrival without a single attempt having been made.
+     * @return true when at least one locked slot holds an unexplained arrival.
+     */
+    private static boolean scan(LocalPlayer player, boolean armed, boolean gateOpen) {
+        Inventory inventory = player.getInventory();
+        boolean any = false;
+        for (int slot = 0; slot < SlotBlock.HOTBAR_SLOT_COUNT; slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            int count = stack.isEmpty() ? 0 : stack.getCount();
+            int itemId = Item.getId(stack.getItem());
+            boolean arrival = false;
+            if (armed && FreeMyHotbarClient.config().isBlocked(slot)) {
+                arrival = BASELINE.update(slot, itemId, count, gateOpen);
+            } else {
+                BASELINE.accept(slot, itemId, count);
+            }
+            if (count == 0) {
+                TRACKER.noteEmpty(slot);
+            }
+            ARRIVALS[slot] = arrival;
+            any |= arrival;
+        }
+        return any;
     }
 
     /** Whether a container click is both meaningful and safe to send on this tick. */
@@ -149,20 +226,20 @@ public final class HotbarEvictor {
         // landed in a just-freed slot. The flush cooldown is what covers that: the next pass runs
         // after the server's slot broadcast has actually arrived.
         sweep(minecraft, player, mode);
-        if (!anyLockedSlotOccupied(player)) {
-            TRACKER.clearPending();
-        }
     }
 
+    /**
+     * Acts on the arrivals {@link #scan} found. Slots the player's own tools sit in are not in
+     * {@link #ARRIVALS} and are therefore never touched, however full the rest of the hotbar is.
+     */
     private static void sweep(Minecraft minecraft, LocalPlayer player, FallbackMode mode) {
         Inventory inventory = player.getInventory();
         for (int slot = 0; slot < SlotBlock.HOTBAR_SLOT_COUNT; slot++) {
-            if (!FreeMyHotbarClient.config().isBlocked(slot)) {
+            if (!ARRIVALS[slot]) {
                 continue;
             }
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty()) {
-                TRACKER.noteEmpty(slot);
                 continue;
             }
             int signature = signature(stack);
@@ -209,16 +286,6 @@ public final class HotbarEvictor {
                 drop ? THROW_WHOLE_STACK : 0,
                 drop ? ClickType.THROW : ClickType.QUICK_MOVE,
                 player);
-    }
-
-    private static boolean anyLockedSlotOccupied(LocalPlayer player) {
-        Inventory inventory = player.getInventory();
-        for (int slot = 0; slot < SlotBlock.HOTBAR_SLOT_COUNT; slot++) {
-            if (FreeMyHotbarClient.config().isBlocked(slot) && !inventory.getItem(slot).isEmpty()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Identifies a slot's content so the retry budget resets as soon as the stack changes. */

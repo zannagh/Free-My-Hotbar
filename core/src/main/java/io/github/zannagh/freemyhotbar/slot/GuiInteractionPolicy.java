@@ -11,10 +11,19 @@ package io.github.zannagh.freemyhotbar.slot;
  * used or dropped). Only the "put something in" direction is blocked, which is exactly what the
  * setting is labelled as ("Block my own clicks into locked slots").
  *
- * <p>Known gap: shift-clicking a stack from <i>another</i> slot is resolved by the menu's own
- * {@code quickMoveStack}, which may still choose a locked hotbar slot as its destination. That
- * decision is not made in the screen and cannot be suppressed from client input handling alone;
- * the pickup mixin and the client-side fallback evictor cover that path instead.
+ * <p><b>Shift-click is deliberately not blocked here, in either direction.</b> A
+ * {@code QUICK_MOVE} on a locked slot is purely outbound. A {@code QUICK_MOVE} on some OTHER slot
+ * is a different matter: the menu's own {@code quickMoveStack} resolves the destination and may
+ * well pick a locked hotbar slot. That choice is server-authoritative, is not made in the screen
+ * at all, and therefore cannot be suppressed from client input handling on a server without the
+ * mod — blocking the click outright would only stop the player from moving their own items.
+ *
+ * <p>The client-side fallback covers it instead, and needs no help from this class to do so: it
+ * evicts by comparing each locked slot against a per-slot baseline, so anything that ARRIVES
+ * unasked is moved out whether an auto-pickup or a shift-click destination put it there. The one
+ * thing it must not undo is a placement the player asked for by name — the {@code PICKUP},
+ * {@code SWAP} and {@code QUICK_CRAFT} clicks judged below, when the setting lets them through.
+ * Those are recorded as deliberate and adopted rather than evicted.
  */
 public final class GuiInteractionPolicy {
 

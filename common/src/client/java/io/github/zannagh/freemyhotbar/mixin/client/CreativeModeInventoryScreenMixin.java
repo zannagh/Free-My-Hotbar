@@ -1,7 +1,6 @@
 package io.github.zannagh.freemyhotbar.mixin.client;
 
 import io.github.zannagh.freemyhotbar.client.LockedSlots;
-import io.github.zannagh.freemyhotbar.slot.GuiInteractionPolicy;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
@@ -30,10 +29,7 @@ public abstract class CreativeModeInventoryScreenMixin {
 
     @Inject(method = "slotClicked", at = @At("HEAD"), cancellable = true)
     private void fmh$slotClicked(Slot slot, int slotId, int button, ClickType type, CallbackInfo ci) {
-        if (!LockedSlots.guardActive()) {
-            return;
-        }
-        if (GuiInteractionPolicy.blocks(LockedSlots.describe(slot, button, type))) {
+        if (LockedSlots.onSlotClicked(slot, button, type)) {
             ci.cancel();
         }
     }

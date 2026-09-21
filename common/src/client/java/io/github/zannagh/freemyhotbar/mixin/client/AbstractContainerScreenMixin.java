@@ -1,7 +1,6 @@
 package io.github.zannagh.freemyhotbar.mixin.client;
 
 import io.github.zannagh.freemyhotbar.client.LockedSlots;
-import io.github.zannagh.freemyhotbar.slot.GuiInteractionPolicy;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
@@ -20,8 +19,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <p>Blocking is <b>inbound-only</b>: a locked slot refuses incoming items, but its contents can
  * always be taken out (plain click with an empty cursor, shift-click, drop key, double-click
- * collect), so the player is never trapped. See {@link GuiInteractionPolicy} for the per-click
- * rules and the known {@code quickMoveStack} gap.
+ * collect), so the player is never trapped. See {@code GuiInteractionPolicy} for the per-click
+ * rules and the {@code quickMoveStack} destination case it cannot reach.
+ *
+ * <p>With the setting OFF the same judgement is still made, for the opposite purpose: a click that
+ * WOULD have been blocked is the player deliberately naming a locked slot, and
+ * {@code LockedSlots.onSlotClicked} records it so the client-side evictor leaves what lands there
+ * alone.
  *
  * <p>Within one screen everything funnels through {@code slotClicked}: vanilla calls it for every
  * click, drag step, number-key swap, offhand-swap key and drop-key press. The extra
@@ -45,10 +49,7 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "slotClicked", at = @At("HEAD"), cancellable = true)
     private void fmh$slotClicked(Slot slot, int slotId, int button, ClickType type, CallbackInfo ci) {
-        if (!LockedSlots.guardActive()) {
-            return;
-        }
-        if (GuiInteractionPolicy.blocks(LockedSlots.describe(slot, button, type))) {
+        if (LockedSlots.onSlotClicked(slot, button, type)) {
             ci.cancel();
         }
     }

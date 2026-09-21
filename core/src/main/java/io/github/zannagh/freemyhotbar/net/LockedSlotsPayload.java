@@ -20,6 +20,16 @@ import io.github.zannagh.freemyhotbar.slot.SlotBlock;
  */
 public final class LockedSlotsPayload {
 
+    /**
+     * The largest slot list this mod ever sends, and therefore the largest one a server accepts.
+     *
+     * <p>One entry per hotbar slot is all a legitimate client can have to say. The hand-rolled
+     * decoder this format replaced enforced its own cardinality bound while reading the wire;
+     * gzip(JSON) has none, so the bound has to be re-applied on the decoded payload before anything
+     * walks it (see {@code FmhPackets}).
+     */
+    public static final int MAX_SLOTS = SlotBlock.HOTBAR_SLOT_COUNT;
+
     private final List<SlotBlock> slots;
 
     /**
@@ -38,5 +48,14 @@ public final class LockedSlotsPayload {
      */
     public List<SlotBlock> slots() {
         return slots != null ? slots : List.of();
+    }
+
+    /**
+     * Returns whether this payload's cardinality is plausible for a real client.
+     *
+     * @return true when it carries at most {@link #MAX_SLOTS} entries.
+     */
+    public boolean withinBounds() {
+        return slots().size() <= MAX_SLOTS;
     }
 }
