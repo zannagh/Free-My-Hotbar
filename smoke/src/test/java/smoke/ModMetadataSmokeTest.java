@@ -36,6 +36,7 @@ class ModMetadataSmokeTest {
     private static final String FABRIC_MOD_ID = "free-my-hotbar";
     private static final String FORGE_MOD_ID = "free_my_hotbar";
     private static final String BASE_PACKAGE = "io.github.zannagh.freemyhotbar";
+    private static final String EUNOMIA_MOD_ID = "eunomia";
 
     @Test
     @DisplayName("fabric.mod.json is valid JSON with the expected id and required keys")
@@ -49,6 +50,18 @@ class ModMetadataSmokeTest {
         }
         assertTrue(json.getAsJsonObject("entrypoints").has("main"),
                 "fabric.mod.json must declare a 'main' entrypoint");
+    }
+
+    @Test
+    @DisplayName("fabric.mod.json requires the eunomia mod")
+    void fabricModJsonRequiresEunomia() throws IOException {
+        JsonObject depends = readJson("fabric/src/main/resources/fabric.mod.json").getAsJsonObject("depends");
+
+        assertTrue(depends.has(EUNOMIA_MOD_ID),
+                "fabric.mod.json must require eunomia: it supplies the networking transport and config "
+                        + "framework at runtime, which the mod only compiles against");
+        assertTrue(depends.get(EUNOMIA_MOD_ID).getAsString().startsWith(">="),
+                "the eunomia dependency must declare a lower bound, not a pin");
     }
 
     @Test
@@ -88,6 +101,41 @@ class ModMetadataSmokeTest {
             }
         }
         assertTrue(hasForgeDep, "mods.toml must declare a dependency on modId=\"forge\"");
+    }
+
+    @Test
+    @DisplayName("mods.toml requires eunomia, ordered AFTER, on both sides")
+    void forgeModsTomlRequiresEunomia() throws IOException {
+        TomlParseResult toml = Toml.parse(readString("forge/src/main/resources/META-INF/mods.toml"));
+
+        TomlArray deps = toml.getArray("dependencies." + FORGE_MOD_ID);
+        assertNotNull(deps, "mods.toml must declare [[dependencies." + FORGE_MOD_ID + "]] entries");
+        TomlTable eunomia = null;
+        for (int i = 0; i < deps.size(); i++) {
+            if (EUNOMIA_MOD_ID.equals(deps.getTable(i).getString("modId"))) {
+                eunomia = deps.getTable(i);
+            }
+        }
+        assertNotNull(eunomia, "mods.toml must declare a dependency on modId=\"eunomia\"");
+        assertEquals(Boolean.TRUE, eunomia.getBoolean("mandatory"), "the eunomia dependency must be mandatory");
+        assertEquals("AFTER", eunomia.getString("ordering"),
+                "eunomia must load first: its transports have to be registered before the mod's init runs");
+        assertEquals("BOTH", eunomia.getString("side"), "eunomia is needed on the client and the server");
+    }
+
+    @Test
+    @DisplayName("mods.toml waives the Forge version display test")
+    void forgeModsTomlIgnoresVersionDisplayTest() throws IOException {
+        TomlParseResult toml = Toml.parse(readString("forge/src/main/resources/META-INF/mods.toml"));
+
+        TomlTable firstMod = toml.getArray("mods").getTable(0);
+        // Forge's default MATCH_VERSION red-X's every server that does not answer with the same mod at
+        // the same version, and then refuses the connect - which kills client-only mode outright. The
+        // mod's own SimpleChannel used to waive that via acceptMissingOr(...); once the networking moves
+        // onto eunomia that channel is gone and this field is the only thing left holding the join open.
+        assertEquals("IGNORE_ALL_VERSION", firstMod.getString("displayTest"),
+                "the Forge [[mods]] block must set displayTest=\"IGNORE_ALL_VERSION\" so a client can "
+                        + "still join a server that does not run the mod (client-only mode)");
     }
 
     @Test

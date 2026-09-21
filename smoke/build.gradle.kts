@@ -1,5 +1,8 @@
 plugins {
     java
+    // eunomia's maven sources. :smoke is outside the Stonecutter tree, so it does not inherit the
+    // repositories multiloader-common installs and declares them itself.
+    id("eunomia-repositories")
 }
 
 java {
@@ -18,6 +21,11 @@ repositories {
 dependencies {
     // The MC-free core under test (FreeMyHotbar, SlotBlock, SlotSelection, SlotLockState).
     testImplementation(project(":core"))
+
+    // :core compiles against eunomia-core (FmhPackets, the payload codec), so the suite needs it
+    // on the test classpath to exercise the channel key and the wire round-trip. MC-free half
+    // only — eunomia-common must never reach this classpath.
+    addEunomiaCoreOnly("testImplementation")
 
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")

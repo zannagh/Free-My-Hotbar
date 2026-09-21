@@ -1,6 +1,10 @@
 plugins {
     id("java")
     id("java-library")
+    // eunomia's maven sources (GitHub Packages + mavenLocal for the compile-time libraries,
+    // Modrinth for the dev-run mod jar). Applied here so :common AND both loader branches get
+    // them — the loaders recompile common's sources and need the same compile classpath.
+    id("eunomia-repositories")
 }
 
 val sc = project.stonecutterBuild

@@ -42,6 +42,11 @@ dependencies {
     add("modImplementation", "net.fabricmc.fabric-api:fabric-api:0.92.2+1.20.1")
 }
 
+// The eunomia MOD is a required runtime dependency (fabric.mod.json), so every dev run needs its
+// jar in the run mods dir or fabric-loader aborts mod resolution at boot. Loom points the run dir
+// at build/run, so `clean` empties it — hence the task is never up-to-date (see EunomiaRuntimeMod).
+wireRunsToEunomiaCopy(registerCopyEunomiaToMods(layout.buildDirectory.dir("run/mods")))
+
 val expandProps = mapOf(
     "version" to project.version,
     "java_version" to project.prop("java.version")!!,

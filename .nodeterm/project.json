@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "rev": 37,
-  "savedAt": "2026-09-21T13:49:14.546Z",
+  "rev": 38,
+  "savedAt": "2026-09-21T13:50:47.932Z",
   "id": "project-u5mniz",
   "name": "Free-My-Hotbar",
   "color": "#0a84ff",
@@ -62,9 +62,11 @@
         "height": 440
       },
       "title": "Terminal 3",
+      "titleAuto": true,
       "color": "#ffd60a",
       "group": null,
       "tags": [],
+      "collapsed": false,
       "cwd": "."
     }
   ],

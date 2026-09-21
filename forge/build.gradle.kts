@@ -6,6 +6,12 @@ plugins {
 val forgeVersion = findProperty("forge.version")?.toString()
     ?: error("No Forge version mapping for Minecraft ${project.mcVersion}")
 
+// The eunomia MOD is a required runtime dependency (mods.toml, side="BOTH"), so both dev runs need
+// its jar in the run mods dir or FML aborts mod resolution at boot. MDG's default gameDirectory is
+// the variant's `run/` dir — NOT build/run like Loom's — so the mods dir differs per loader and is
+// passed in explicitly. Null when no eunomia source could be resolved (see EunomiaRuntimeMod).
+val copyEunomiaToMods = registerCopyEunomiaToMods(provider { layout.projectDirectory.dir("run/mods") })
+
 val clientSourceSet = sourceSets.create("client") {
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
     runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
@@ -29,6 +35,7 @@ legacyForge {
     runs {
         register("client") {
             client()
+            copyEunomiaToMods?.let { taskBefore(it) }
             // Launch via the Gradle run task, which forks the game on the project's Java 17
             // toolchain. The daemon must stay on Java 21 for Stonecutter 0.9.1, so we cannot rely
             // on the IDE's Gradle JVM; MDG's generated IntelliJ run config pins no JRE and would
@@ -37,6 +44,7 @@ legacyForge {
         }
         register("server") {
             server()
+            copyEunomiaToMods?.let { taskBefore(it) }
             disableIdeRun()
         }
     }

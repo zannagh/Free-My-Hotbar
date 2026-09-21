@@ -1,10 +1,5 @@
 package io.github.zannagh.freemyhotbar.client.config;
 
-import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -15,18 +10,25 @@ import java.util.function.Consumer;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import de.zannagh.eunomia.configuration.ConfigurationProvider;
+import de.zannagh.eunomia.configuration.FileConfigurationProvider;
 import io.github.zannagh.freemyhotbar.FreeMyHotbar;
 import io.github.zannagh.freemyhotbar.client.HotbarEvictor;
+import io.github.zannagh.freemyhotbar.config.ClientConfigData;
 import io.github.zannagh.freemyhotbar.config.ConfigSchema;
 import io.github.zannagh.freemyhotbar.config.FallbackMode;
 import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 import net.minecraft.client.Minecraft;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Client-side persistence of the blocked hotbar slots (ids 0-8).
  *
- * <p>Stored as versioned JSON at {@code <gamedir>/config/free-my-hotbar.json}. Mutations are
- * fail-safe: a corrupt or missing file yields defaults. On every change the sync callback is fired
+ * <p>Stored as versioned JSON at {@code <gamedir>/config/free-my-hotbar.json}. Load, save and the
+ * v1-mask -> v2 -> v3 migration are eunomia's: {@link FileConfigurationProvider} owns the file and
+ * {@link ClientConfigData} owns the document, so this class is the in-memory view plus the mod's own
+ * rules (slot-range filtering, the eviction reset, the sync callback). Mutations stay fail-safe: a
+ * corrupt or missing file yields defaults. On every change to the slots the sync callback is fired
  * with the current slots so a loader can forward them to the server without common code referencing
  * any loader networking API.
  */
@@ -42,72 +44,57 @@ public final class ClientSlotConfig {
 
     private final Set<SlotBlock> blocked = new LinkedHashSet<>();
 
+    /**
+     * The file-backed store, or null when there is no game directory to write into (a headless or
+     * not-yet-initialised client). All state then stays in memory and {@link #save()} is a no-op,
+     * which is what the pre-eunomia implementation did with a null path too.
+     */
+    private final @Nullable ConfigurationProvider<ClientConfigData> provider;
+
     private FallbackMode fallbackMode = FallbackMode.DEFAULT;
     private boolean blockGuiInteractions = ConfigSchema.DEFAULT_BLOCK_GUI_INTERACTIONS;
     private boolean evictImmediately = ConfigSchema.DEFAULT_EVICT_IMMEDIATELY;
 
-    private transient Consumer<List<SlotBlock>> syncCallback = s -> {
+    private Consumer<List<SlotBlock>> syncCallback = s -> {
     };
 
-    /** Serializable view written to and read from disk. */
-    private static final class Data {
-        int configVersion = CURRENT_VERSION;
-        List<SlotBlock> slots;
-        /**
-         * Schema v3: what to do on a server without the mod; null means "absent". Stored as a
-         * String rather than the enum so {@link FallbackMode#parse} owns the read: Gson's enum
-         * adapter is case-sensitive and silently yields null for anything it does not recognise,
-         * which would turn a hand-edited {@code "move_or_drop"} into the default without a word.
-         */
-        String fallbackMode;
-        /** Schema v3: suppress own clicks into locked slots; boxed so a null means "absent". */
-        Boolean blockGuiInteractions;
-        /** Schema v3: bypass the eviction movement gate; boxed so a null means "absent". */
-        Boolean evictImmediately;
-        /** Legacy v1 field: boxed so a null means "absent". Read only during migration. */
-        Integer mask;
+    private ClientSlotConfig(@Nullable ConfigurationProvider<ClientConfigData> provider) {
+        this.provider = provider;
+        if (provider != null) {
+            apply(provider.getValue());
+        }
     }
 
     /**
      * Loads the config from disk, returning a fail-safe default instance on any error.
      *
+     * <p>The provider migrates a legacy document and rewrites the file itself when it did, so a v1
+     * mask file is read as slots and re-saved in the current shape without this class knowing.
+     *
      * @return a populated config, never null.
      */
     public static ClientSlotConfig load() {
-        ClientSlotConfig config = new ClientSlotConfig();
         Path path = configPath();
-        if (path == null || !Files.exists(path)) {
-            return config;
+        if (path == null) {
+            return new ClientSlotConfig(null);
         }
-        boolean migrated = false;
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            Data data = GSON.fromJson(reader, Data.class);
-            if (data != null) {
-                config.apply(data);
-                migrated = ConfigSchema.needsRewrite(data.configVersion) || data.mask != null;
-            }
+        try {
+            return new ClientSlotConfig(new FileConfigurationProvider<>(
+                    path, ClientConfigData.class, ClientConfigData::defaults, GSON, FreeMyHotbar.LOGGER));
         } catch (Exception e) {
-            FreeMyHotbar.LOGGER.warn("Failed to read {}, using defaults", FILE_NAME, e);
+            // The provider already swallows a corrupt document; this covers the file system itself
+            // being unusable, which must not stop the client from starting with defaults.
+            FreeMyHotbar.LOGGER.warn("Failed to open {}, using defaults", FILE_NAME, e);
+            return new ClientSlotConfig(null);
         }
-        if (migrated) {
-            // Rewrite in the current format so legacy fields are dropped and new ones persisted.
-            config.save();
-        }
-        return config;
     }
 
-    /** Copies one loaded file into this instance, migrating older schemas as it goes. */
-    private void apply(Data data) {
-        if (data.slots != null) {
-            addBlocked(SlotBlock.blockedOnly(data.slots));
-        } else if (data.mask != null) {
-            // legacy v1 mask migration: decode the low SLOT_COUNT bits into slot ids.
-            addBlocked(ConfigSchema.decodeLegacyMask(data.mask, SLOT_COUNT));
-        }
-        // v2 -> v3: both fields are absent in older files and fall back to their defaults.
-        fallbackMode = FallbackMode.parse(data.fallbackMode);
-        blockGuiInteractions = ConfigSchema.blockGuiInteractionsOrDefault(data.blockGuiInteractions);
-        evictImmediately = ConfigSchema.evictImmediatelyOrDefault(data.evictImmediately);
+    /** Copies one loaded document into this instance. */
+    private void apply(ClientConfigData data) {
+        addBlocked(data.blockedSlots());
+        fallbackMode = data.fallbackMode();
+        blockGuiInteractions = data.blockGuiInteractions();
+        evictImmediately = data.evictImmediately();
     }
 
     private void addBlocked(Collection<SlotBlock> slots) {
@@ -118,26 +105,13 @@ public final class ClientSlotConfig {
         }
     }
 
-    /** Writes the current state to disk; failures are logged but never thrown. */
+    /** Writes the current state to disk; failures are logged by the provider but never thrown. */
     public void save() {
-        Path path = configPath();
-        if (path == null) {
+        if (provider == null) {
             return;
         }
-        Data data = new Data();
-        data.configVersion = CURRENT_VERSION;
-        data.slots = slots();
-        data.fallbackMode = fallbackMode.name();
-        data.blockGuiInteractions = blockGuiInteractions;
-        data.evictImmediately = evictImmediately;
-        try {
-            Files.createDirectories(path.getParent());
-            try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
-                GSON.toJson(data, writer);
-            }
-        } catch (IOException e) {
-            FreeMyHotbar.LOGGER.warn("Failed to write {}", FILE_NAME, e);
-        }
+        provider.updateAndSave(ClientConfigData.current(
+                slots(), fallbackMode, blockGuiInteractions, evictImmediately));
     }
 
     /**
@@ -278,8 +252,8 @@ public final class ClientSlotConfig {
         };
     }
 
-    private static Path configPath() {
-        try{
+    private static @Nullable Path configPath() {
+        try {
             return Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve(FILE_NAME);
         } catch (NullPointerException ignored) {
             return null;

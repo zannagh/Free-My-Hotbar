@@ -35,6 +35,7 @@
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
     "minecraft": "${fabric_minecraft_version}",
-    "java": ">=${java_version}"
+    "java": ">=${java_version}",
+    "eunomia": ">=0.3.14"
   }
 }

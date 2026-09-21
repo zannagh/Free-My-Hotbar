@@ -24,6 +24,10 @@ dependencies {
     compileOnly("org.jspecify:jspecify:1.0.0")
 }
 
+// eunomia's compile-time API, unremapped — the loader recompiles common's sources, so it needs
+// the same coordinates common's own build script adds (see addEunomiaCompileOnly).
+addEunomiaCompileOnly()
+
 // Include common's sources in the loader's source sets for IntelliJ
 sourceSets.main {
     java { commonSourceSets["main"].java.srcDirs.forEach { srcDir(it) } }

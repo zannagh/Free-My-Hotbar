@@ -1,35 +1,28 @@
 package io.github.zannagh.freemyhotbar.forge;
 
 import io.github.zannagh.freemyhotbar.FreeMyHotbar;
+import io.github.zannagh.freemyhotbar.FreeMyHotbarNetworking;
 import io.github.zannagh.freemyhotbar.forge.client.FreeMyHotbarClientForge;
-import io.github.zannagh.freemyhotbar.forge.net.ForgeNetworking;
-import io.github.zannagh.freemyhotbar.slot.SlotLockState;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * Forge entrypoint for Free My Hotbar. Wires the optional networking channel, the server-side
- * lifecycle cleanup (drop a player's stored slots on logout), and — client-side only — the keybind,
- * client init and slot sync glue.
+ * Forge entrypoint for Free My Hotbar. Registers the loader-agnostic networking (which also covers
+ * the server-side cleanup of a logged-out player's stored slots) and — client-side only — the
+ * keybind, client init and tick glue.
  */
-@Mod(ForgeNetworking.MOD_ID)
+@Mod(FreeMyHotbar.FORGE_MOD_ID)
 public class FreeMyHotbarForge {
 
     public FreeMyHotbarForge() {
         FreeMyHotbar.init();
-        ForgeNetworking.register();
-
-        MinecraftForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
+        // The constructor runs on both physical sides, which is where the locked-slots handler has
+        // to be registered — see FreeMyHotbarNetworking.
+        FreeMyHotbarNetworking.init();
 
         // Client-only glue: the supplier is class-loaded only on the physical client, so no client
         // classes are touched on a dedicated server.
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> FreeMyHotbarClientForge::init);
-    }
-
-    private void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        SlotLockState.remove(event.getEntity().getUUID());
     }
 }

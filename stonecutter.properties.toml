@@ -4,6 +4,25 @@ archives_base_name = "free-my-hotbar"
 loader_version = "0.18.4"
 
 # ──────────────────────────────────────────────────────────────────────────────
+# eunomia — the config/networking library FMH compiles against (eunomia-core +
+# eunomia-common, both compileOnly) and requires at game runtime.
+#
+# `eunomia.version` is the release tag and is version-agnostic: eunomia-core carries
+# no MC suffix, so ONE value covers every variant.
+#
+# eunomia-common IS MC-specific, and its "+<display>" segment is eunomia's OWN
+# display_version — which is NOT the same string as FMH's `display_version`. On MC
+# 1.20.1 the two loaders even disagree with each other (mc-1.20.0-1 on Fabric,
+# mc-1.20.1-forge on Forge) while FMH ships mc-1.20.1 on both. FMH's own
+# `display_version` names FMH's jars and keys the stageArtifacts publish matrix, so it
+# must not be bent to match. Hence the SEPARATE per-variant `eunomia.display_version`
+# below — see the per-project sections.
+#
+# Adding a variant: set `eunomia.display_version` in its section and nothing else.
+# The Modrinth version id for the dev-run jar is DERIVED from it (see EunomiaRuntimeMod.kt).
+eunomia.version = "0.3.14"
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Per MC version — shared between fabric and forge for the same game version.
 # Matched via the version tag registered in multiloader-common.gradle.kts.
 # ──────────────────────────────────────────────────────────────────────────────
@@ -26,7 +45,14 @@ game_versions = "1.20.1"
 ["fabric-1.20.1"]
 "fabric.minecraft_version" = "1.20.1"
 "fabric.minecraft_version_range" = "1.20.1"
+# eunomia's own display_version for this variant (eunomia-common coordinate + the
+# derived Modrinth id "fab-<display>-<eunomia.version>"). NOT FMH's display_version.
+eunomia.display_version = "mc-1.20.0-1"
 
 ["forge-1.20.1"]
 "forge.version" = "1.20.1-47.3.0"
 "forge.minecraft_version_range" = "[1.20.1,1.21)"
+# eunomia's own display_version for this variant (eunomia-common coordinate + the
+# derived Modrinth id "forge-<display>-<eunomia.version>"). NOT FMH's display_version:
+# eunomia tags the classic-Forge build "-forge" while FMH ships "mc-1.20.1" on both loaders.
+eunomia.display_version = "mc-1.20.1-forge"
