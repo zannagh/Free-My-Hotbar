@@ -62,3 +62,88 @@ fun Jar.includeLicense(archivesName: String) {
         rename("LICENSE", "LICENSE_$archivesName")
     }
 }
+
+// ── eunomia coordinates ──────────────────────────────────────────────────────────
+// eunomia ships two compile-time artifacts. `eunomia-core` is MC-free and carries no
+// version suffix, so one coordinate resolves everywhere. `eunomia-common` is the
+// MC-facing half and IS version-specific, so its coordinate needs eunomia's own
+// display_version appended plus the `dev` classifier (eunomia's default artifact is
+// loom's remapped jar, which is intermediary-mapped on every MC 1.x variant).
+//
+// eunomia's display_version is deliberately a SEPARATE property from ours: the two
+// disagree on MC 1.20.1 (eunomia says mc-1.20.0-1 on Fabric and mc-1.20.1-forge on
+// Forge; FMH says mc-1.20.1 on both, and that string names our jars and keys the
+// publish matrix). See the comments in stonecutter.properties.toml.
+
+/** eunomia's release tag, e.g. "0.3.14". Global — one value covers every variant. */
+val Project.eunomiaVersion: String? get() = prop("eunomia.version")
+
+/** eunomia's OWN display_version for this variant, e.g. "mc-1.20.0-1". Never ours. */
+val Project.eunomiaDisplayVersion: String? get() = prop("eunomia.display_version")
+
+/** eunomia's Modrinth loader prefix, keyed by the loader in the Stonecutter project name. */
+private val EUNOMIA_MODRINTH_LOADER_PREFIXES = mapOf(
+    "fabric" to "fab",
+    "forge" to "forge",
+    "neoforge" to "neo"
+)
+
+/**
+ * The Modrinth version id of the eunomia mod jar for this variant, DERIVED rather than
+ * pinned: eunomia names one release per (loader, MC range) as
+ * `<fab|forge|neo>-<eunomia.display_version>-<eunomia.version>`. A new variant therefore
+ * needs only its `eunomia.display_version`. `eunomia.modrinth_id` overrides it if eunomia
+ * ever breaks that naming convention for a single release.
+ */
+val Project.eunomiaModrinthVersionId: String?
+    get() {
+        prop("eunomia.modrinth_id")?.let { return it }
+        val version = eunomiaVersion ?: return null
+        val display = eunomiaDisplayVersion ?: return null
+        val prefix = EUNOMIA_MODRINTH_LOADER_PREFIXES[loader] ?: return null
+        return "$prefix-$display-$version"
+    }
+
+/**
+ * Adds eunomia's compile-time API to [configuration]. compileOnly everywhere: the eunomia
+ * MOD supplies the implementation at game runtime (declared as a required dependency in
+ * fabric.mod.json / mods.toml), so nothing of eunomia's is ever bundled into our jar.
+ * Plain library dependencies, NOT remapped mod jars — they never go through loom.
+ * No-op when the properties are absent, so an unpinned variant still configures.
+ */
+fun Project.addEunomiaCompileOnly(configuration: String = "compileOnly") {
+    val version = eunomiaVersion ?: return
+    dependencies.add(configuration, "de.zannagh.eunomia:eunomia-core:$version")
+    val display = eunomiaDisplayVersion ?: return
+    dependencies.add(configuration, "de.zannagh.eunomia:eunomia-common:$version+$display:dev")
+}
+
+/**
+ * eunomia's release tag for projects OUTSIDE the Stonecutter tree — `:core` and `:smoke` are plain
+ * Java modules, so Stonecutter never injects `eunomia.version` into them. Reads the single global
+ * declaration out of `stonecutter.properties.toml` (the lines above the first `[section]` header)
+ * so the version still lives in exactly one place. Falls back to the injected property when it IS
+ * present, which keeps this usable from anywhere.
+ */
+val Project.eunomiaVersionGlobal: String?
+    get() {
+        eunomiaVersion?.let { return it }
+        val toml = rootProject.file("stonecutter.properties.toml")
+        if (!toml.isFile) {
+            return null
+        }
+        val global = toml.readLines().takeWhile { !it.trimStart().startsWith("[") }
+        return global
+            .firstNotNullOfOrNull { Regex("""^\s*eunomia\.version\s*=\s*"([^"]+)"""").find(it) }
+            ?.groupValues?.get(1)
+    }
+
+/**
+ * Adds only the MC-free `eunomia-core` to [configuration]. For `:core` and `:smoke`, which are
+ * Minecraft-free and therefore must never see `eunomia-common`. Same compileOnly rationale as
+ * [addEunomiaCompileOnly]: the eunomia MOD supplies the implementation at game runtime.
+ */
+fun Project.addEunomiaCoreOnly(configuration: String = "compileOnly") {
+    val version = eunomiaVersionGlobal ?: return
+    dependencies.add(configuration, "de.zannagh.eunomia:eunomia-core:$version")
+}

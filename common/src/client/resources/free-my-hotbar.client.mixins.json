@@ -2,7 +2,12 @@
   "required": true,
   "package": "io.github.zannagh.freemyhotbar.mixin.client",
   "compatibilityLevel": "JAVA_${java_version}",
-  "client": [],
+  "client": [
+    "AbstractContainerScreenMixin",
+    "ClientPacketListenerMixin",
+    "CreativeModeInventoryScreenMixin",
+    "CreativeSlotWrapperAccessor"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

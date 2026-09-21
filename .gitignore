@@ -44,3 +44,6 @@ replay_*.log
 
 # Agent harness loop state (local tooling, not source)
 .agent-harness/
+
+# Local workspace state from the nodeterm terminal/canvas tooling (not source)
+.nodeterm/

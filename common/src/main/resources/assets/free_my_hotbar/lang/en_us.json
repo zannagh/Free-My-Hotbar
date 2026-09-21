@@ -1,7 +1,20 @@
 {
   "screen.free-my-hotbar.title": "Free My Hotbar",
-  "screen.free-my-hotbar.help": "Locked slots won't receive picked-up items.",
+  "screen.free-my-hotbar.help": "Choose which hotbar slots to keep free.",
   "screen.free-my-hotbar.slot.free": "Slot %s: Free",
   "screen.free-my-hotbar.slot.locked": "Slot %s: Locked",
+  "screen.free-my-hotbar.mode.present": "This server has the mod: locked slots never receive picked-up items.",
+  "screen.free-my-hotbar.mode.absent": "No mod on this server: items are picked up, then moved out of locked slots.",
+  "screen.free-my-hotbar.mode.unknown": "Checking whether this server has the mod...",
+  "screen.free-my-hotbar.fallback": "Without server mod: %s",
+  "screen.free-my-hotbar.fallback.off": "Leave items where they land",
+  "screen.free-my-hotbar.fallback.move": "Move items to the inventory",
+  "screen.free-my-hotbar.fallback.move_or_drop": "Move items, or drop them if full",
+  "screen.free-my-hotbar.block_gui": "Block my own clicks into locked slots: %s",
+  "screen.free-my-hotbar.evict_immediately": "Move items out right away, even while moving: %s",
+  "screen.free-my-hotbar.evict_immediately.hint": "Faster, but some servers ignore inventory actions made while you move.",
+  "chat.free-my-hotbar.fallback_notice": "Free My Hotbar: this server doesn't have the mod, so items are picked up and then moved out of locked slots.",
+  "chat.free-my-hotbar.drop_limit": "Free My Hotbar: slot %s keeps being refilled by the server, so the mod stopped dropping its contents \u2014 a dropped stack can simply be picked back up. Free some inventory space, or unlock the slot.",
+  "chat.free-my-hotbar.fallback_off": "Free My Hotbar: this server doesn't have the mod and the fallback is off, so locked slots are not enforced here.",
   "key.free-my-hotbar.open_screen": "Open Slot Lock Screen"
 }

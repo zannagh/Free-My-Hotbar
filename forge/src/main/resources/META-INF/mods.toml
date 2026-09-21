@@ -8,6 +8,16 @@ version="${version}"
 displayName="Free My Hotbar"
 description="A mod to block hotbar slots from item pickup."
 authors="Zannagh"
+# LOAD-BEARING for client-only mode, do NOT drop this.
+# Forge's default displayTest is MATCH_VERSION: the client advertises free_my_hotbar in the server
+# list ping and red-X's (and then refuses to connect to) any server that does not answer with the
+# same mod at the same version. Today the mod is still joinable against a vanilla/non-FMH server
+# only because its SimpleChannel is built with acceptMissingOr(...), which makes FML treat the
+# channel as optional. That channel goes away when the networking moves onto eunomia, and with it
+# the only thing keeping the connect alive — so the version check has to be waived here instead.
+# FMH's locks are enforced client-side when the server does not run it, which is precisely the
+# client-only mode this makes possible.
+displayTest="IGNORE_ALL_VERSION"
 
 [[dependencies."free_my_hotbar"]]
 modId="forge"
@@ -21,4 +31,16 @@ modId="minecraft"
 mandatory=true
 versionRange="${minecraft_version}"
 ordering="NONE"
+side="BOTH"
+
+# eunomia supplies the networking transport and config framework FMH compiles against
+# (eunomia-core / eunomia-common) and installs the live client/server channels at runtime.
+# Ordered AFTER so eunomia's init has registered its transports before FMH's runs.
+# `mandatory` is classic Forge (FML 47); NeoForge's `type="required"` throws here at boot, and
+# ModMetadataSmokeTest guards against that syntax leaking back in.
+[[dependencies."free_my_hotbar"]]
+modId="eunomia"
+mandatory=true
+versionRange="[0.3.14,)"
+ordering="AFTER"
 side="BOTH"

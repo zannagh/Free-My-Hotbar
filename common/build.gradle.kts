@@ -32,6 +32,11 @@ dependencies {
 
     compileOnly("org.jspecify:jspecify:1.0.0")
 
+    // eunomia's compile-time API (eunomia-core + eunomia-common). compileOnly — the eunomia
+    // mod supplies the runtime. Mirrored in multiloader-loader, because the loaders recompile
+    // these same sources and need the identical compile classpath.
+    addEunomiaCompileOnly()
+
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
