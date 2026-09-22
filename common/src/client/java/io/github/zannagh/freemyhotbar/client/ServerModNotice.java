@@ -40,7 +40,13 @@ public final class ServerModNotice {
             return;
         }
         sent = true;
+        // 26.1 replaced the action-bar flag with a second method rather than renaming this one,
+        // so this is a real signature change and not something the replacement table can carry.
+        //? if >= 26.1 {
+        /*player.sendSystemMessage(message());
+        *///?} else {
         player.displayClientMessage(message(), false);
+        //?}
     }
 
     private static Component message() {

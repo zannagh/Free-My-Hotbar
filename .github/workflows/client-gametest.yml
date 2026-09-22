@@ -1,0 +1,161 @@
+# In-game Fabric client game tests (FCGT), headless.
+#
+# These boot a REAL Minecraft client under Xvfb + Mesa llvmpipe software GL, which only the
+# self-hosted `fcgt` runner provides - a stock GitHub-hosted runner has no software GL and cannot
+# run them. So the gate is self-guarding: the `detect` job asks whether an `fcgt` runner is actually
+# online; if not (or on a fork PR with no RUNNER_TOKEN) the gametest job is skipped and the required
+# `client-gametest-result` check still passes. When a runner IS available, that result job fails iff
+# the gametest job failed - a real merge gate.
+#
+# Budget: booting six clients is minutes each, so the PR gate runs ONE variant (fabric-1.21.11, the
+# newest 1.21.x and the variant the suite was written against) and the full six-variant matrix runs
+# nightly or on demand. Mirrors the posture of armor-hider's smoke workflow.
+#
+# The load-bearing JVM arguments (-Dfabric.client.gametest,
+# -Dfabric.client.gametest.modid=free-my-hotbar, -Dfabric.client.gametest.disableNetworkSynchronizer)
+# and the eunomia run-mods copy live on the `clientGametest` run config in fabric/build.gradle.kts,
+# not here - this workflow only decides where and when the Gradle task runs.
+name: Client GameTest
+
+on:
+  # No paths-ignore: client-gametest-result is meant to be a REQUIRED status check, and a workflow
+  # skipped by paths-ignore never reports its checks - a docs-only PR would then wait forever on a
+  # missing required check. The detect->skip path keeps it cheap when no runner is available.
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+  # Gradle resolves eunomia-core/eunomia-common from GitHub Packages; reading them needs an
+  # authenticated token (exported as GITHUB_TOKEN below).
+  packages: read
+
+concurrency:
+  group: client-gametest-${{ github.ref }}
+  cancel-in-progress: true
+
+# Headless software-GL environment for booting real clients on the runner.
+env:
+  LIBGL_ALWAYS_SOFTWARE: "1"
+  MESA_GL_VERSION_OVERRIDE: "4.5"
+  # eunomia-core/eunomia-common live in GitHub Packages (maven.pkg.github.com/zannagh/eunomia) and
+  # need an authenticated read: buildSrc only declares that repository when a token is visible.
+  # EUNOMIA_PACKAGES_TOKEN is deliberately NOT defined: eunomia is a public repo publishing a public
+  # package, so the automatic token can read it. It is an escape hatch if that package ever goes
+  # private (a PAT with read:packages); unset, it evaluates empty and the automatic token is used.
+  GITHUB_TOKEN: ${{ secrets.EUNOMIA_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  # Is a self-hosted `fcgt` runner online? determine-runner degrades to default-runs-on when the
+  # runner is absent or RUNNER_TOKEN is missing (e.g. fork PRs), so `runner` simply won't contain
+  # `fcgt` then.
+  detect:
+    name: Detect FCGT runner
+    runs-on: ubuntu-latest
+    outputs:
+      has_fcgt: ${{ steps.flag.outputs.has_fcgt }}
+    steps:
+      - name: Look for an fcgt runner
+        id: pick
+        uses: zannagh/versionizer/determine-runner@v1
+        with:
+          runner-token: ${{ secrets.RUNNER_TOKEN }}
+          required-labels: 'self-hosted,fcgt'
+          default-runs-on: 'ubuntu-latest'
+      - name: Derive flag
+        id: flag
+        run: |
+          if printf '%s' '${{ steps.pick.outputs.runner }}' | grep -q 'fcgt'; then
+            echo "has_fcgt=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_fcgt=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No self-hosted 'fcgt' runner online - client game tests will be skipped (not a merge blocker)."
+          fi
+
+  # The PR gate itself. One variant only; the rest run nightly below.
+  gametest:
+    name: PR gate (fabric-1.21.11)
+    needs: detect
+    if: needs.detect.outputs.has_fcgt == 'true'
+    runs-on: [self-hosted, fcgt]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Gradle Environment
+        uses: zannagh/versionizer/setup-gradle-env@v1
+
+      # `clientGametest` is the root aggregate over the :smoke `clientGametest` suite; each row forks
+      # `./gradlew :fabric:<variant>:runClientGametest`. -Dgametest.only narrows the matrix to one row.
+      - name: Client game tests (fabric-1.21.11)
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" \
+            ./gradlew clientGametest -Dgametest.only=fabric-1.21.11 \
+              --build-cache --no-daemon --console=plain
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-gametest-report-pr
+          path: smoke/build/reports/tests/clientGametest
+          if-no-files-found: ignore
+
+  # Required status check. Passes when the gametest job succeeded OR was skipped for lack of a
+  # runner; fails only when it actually ran and failed. Set THIS job as the required check in branch
+  # protection, not `gametest`.
+  client-gametest-result:
+    name: Client GameTest result
+    needs: [detect, gametest]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate
+        run: |
+          echo "detect=${{ needs.detect.result }} has_fcgt=${{ needs.detect.outputs.has_fcgt }} gametest=${{ needs.gametest.result }}"
+          # If runner availability could not be determined, don't silently pass - block and let a
+          # re-run resolve it.
+          if [ "${{ needs.detect.result }}" != "success" ]; then
+            echo "::error::Runner-detection job did not succeed (${{ needs.detect.result }}); cannot determine gametest status."
+            exit 1
+          fi
+          if [ "${{ needs.detect.outputs.has_fcgt }}" != "true" ]; then
+            echo "No fcgt runner available; client game tests skipped. Passing gate."
+            exit 0
+          fi
+          # A runner WAS available, so the job must have run to a clean success. Anything else -
+          # failure, cancelled, timed_out, skipped - blocks.
+          if [ "${{ needs.gametest.result }}" != "success" ]; then
+            echo "::error::Client game tests did not succeed (result=${{ needs.gametest.result }}) - see the 'PR gate' job."
+            exit 1
+          fi
+          echo "Client game tests passed."
+          exit 0
+
+  # All six FCGT-capable variants (1.21.8, 1.21.10, 1.21.11, 26.1.2, 26.2, 26.3). Six client boots is
+  # far too slow for a per-PR gate, so it runs nightly and on demand only.
+  full-matrix:
+    name: Nightly full matrix
+    needs: detect
+    if: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.detect.outputs.has_fcgt == 'true' }}
+    runs-on: [self-hosted, fcgt]
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Gradle Environment
+        uses: zannagh/versionizer/setup-gradle-env@v1
+      - name: Client game tests (all FCGT variants)
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" \
+            ./gradlew clientGametest --build-cache --no-daemon --console=plain
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-gametest-report-nightly
+          path: smoke/build/reports/tests/clientGametest
+          if-no-files-found: ignore

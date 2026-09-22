@@ -139,23 +139,38 @@ class ModMetadataSmokeTest {
     }
 
     @Test
-    @DisplayName("common mixin config is valid JSON with the expected package")
+    @DisplayName("common mixin config is valid JSON with the expected package and plugin")
     void commonMixinsJsonIsValid() throws IOException {
         JsonObject json = readJson("common/src/main/resources/free-my-hotbar.mixins.json");
 
         assertEquals(BASE_PACKAGE + ".mixin", json.get("package").getAsString(),
                 "the common mixin package must sit under the mod's base package");
-        assertTrue(json.has("mixins"), "the mixin config must declare a 'mixins' array");
+        assertMixinsComeFromThePlugin(json, BASE_PACKAGE + ".CommonMixinPlugin");
     }
 
     @Test
-    @DisplayName("client mixin config is valid JSON with the expected package")
+    @DisplayName("client mixin config is valid JSON with the expected package and plugin")
     void clientMixinsJsonIsValid() throws IOException {
         JsonObject json = readJson("common/src/client/resources/free-my-hotbar.client.mixins.json");
 
         assertEquals(BASE_PACKAGE + ".mixin.client", json.get("package").getAsString(),
                 "the client mixin package must sit under the mod's base mixin package");
-        assertTrue(json.has("client"), "the client mixin config must declare a 'client' array");
+        assertMixinsComeFromThePlugin(json, BASE_PACKAGE + ".ClientMixinPlugin");
+    }
+
+    /**
+     * Asserts a mixin config names its plugin and lists no mixins of its own.
+     *
+     * <p>Across the version matrix a mixin can be compiled out of a single variant, and a mixin
+     * named in the JSON but missing from the jar is a hard boot failure rather than a warning. The
+     * class list therefore has to come from the plugin, which drops what is not on the classpath -
+     * so a static list creeping back in would silently re-arm that failure.
+     */
+    private static void assertMixinsComeFromThePlugin(JsonObject json, String pluginClass) {
+        assertEquals(pluginClass, json.get("plugin").getAsString(),
+                "the mixin config must name its classpath-presence filtering plugin");
+        assertFalse(json.has("mixins"), "mixins must be supplied by the plugin, not listed statically");
+        assertFalse(json.has("client"), "mixins must be supplied by the plugin, not listed statically");
     }
 
     private static JsonObject readJson(String relativePath) throws IOException {

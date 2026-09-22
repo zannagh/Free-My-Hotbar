@@ -7,13 +7,17 @@ import io.github.zannagh.freemyhotbar.slot.GuiInteractionPolicy;
 import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 
 /**
  * Client-side bridge between a live container screen and the MC-free lock model: resolves whether
  * a {@link Slot} is one of the local player's locked hotbar slots, and describes a slot
  * interaction as a {@link GuiClick} for the policy to judge.
+ *
+ * <p>The game's own click-type enum never reaches this class. Its callers are the two screen
+ * mixins, which already have to name the vanilla type in their injected signature, so that is
+ * where it is translated into {@link GuiInteraction} - and everything from here inward is one
+ * rename wave further from the game.
  *
  * <p>Hotbar slots are resolved structurally — the slot's container must be the local player's
  * {@code Inventory} and its container index must fall in {@code [0, 9)} — rather than by a
@@ -89,15 +93,14 @@ public final class LockedSlots {
      * Describes one slot interaction for {@code GuiInteractionPolicy}.
      *
      * @param slot the slot under the cursor; may be null (a click outside the window).
-     * @param button the vanilla button argument — for {@link ClickType#SWAP} either the hotbar
-     *     index the pressed number key names, or
+     * @param button the vanilla button argument — for {@link GuiInteraction#SWAP} either the
+     *     hotbar index the pressed number key names, or
      *     {@link GuiInteractionPolicy#OFFHAND_SWAP_BUTTON} for the offhand swap key (F), which
      *     vanilla dispatches through the very same {@code slotClicked} call.
-     * @param type the vanilla click type.
-     * @return the described click, or null when there is no player or the type is unknown.
+     * @param kind what the interaction would do; may be null when the type is unknown.
+     * @return the described click, or null when there is no player or the kind is unknown.
      */
-    public static GuiClick describe(Slot slot, int button, ClickType type) {
-        GuiInteraction kind = kindOf(type);
+    public static GuiClick describe(Slot slot, int button, GuiInteraction kind) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (kind == null || player == null) {
             return null;
@@ -127,11 +130,11 @@ public final class LockedSlots {
      *
      * @param slot the slot under the cursor; may be null (a click outside the window).
      * @param button the vanilla button argument of the click.
-     * @param type the vanilla click type.
+     * @param kind what the interaction would do.
      * @return true when the click must be cancelled.
      */
-    public static boolean onSlotClicked(Slot slot, int button, ClickType type) {
-        GuiClick click = describe(slot, button, type);
+    public static boolean onSlotClicked(Slot slot, int button, GuiInteraction kind) {
+        GuiClick click = describe(slot, button, kind);
         if (!GuiInteractionPolicy.blocks(click)) {
             return false;
         }
@@ -153,20 +156,5 @@ public final class LockedSlots {
             return wrapper.freeMyHotbar$getTarget();
         }
         return slot;
-    }
-
-    private static GuiInteraction kindOf(ClickType type) {
-        if (type == null) {
-            return null;
-        }
-        return switch (type) {
-            case PICKUP -> GuiInteraction.PICKUP;
-            case QUICK_MOVE -> GuiInteraction.QUICK_MOVE;
-            case SWAP -> GuiInteraction.SWAP;
-            case CLONE -> GuiInteraction.CLONE;
-            case THROW -> GuiInteraction.THROW;
-            case QUICK_CRAFT -> GuiInteraction.QUICK_CRAFT;
-            case PICKUP_ALL -> GuiInteraction.PICKUP_ALL;
-        };
     }
 }

@@ -34,6 +34,68 @@ java.version = "17"
 display_version = "mc-1.20.1"
 game_versions = "1.20.1"
 
+["1.21.1"]
+java.version = "21"
+display_version = "mc-1.21.0-1"
+game_versions = "1.21,1.21.1"
+
+["1.21.2"]
+java.version = "21"
+display_version = "mc-1.21.2"
+game_versions = "1.21.2"
+
+["1.21.3"]
+java.version = "21"
+display_version = "mc-1.21.3"
+game_versions = "1.21.3"
+
+["1.21.4"]
+java.version = "21"
+display_version = "mc-1.21.4"
+game_versions = "1.21.4"
+
+["1.21.8"]
+java.version = "21"
+display_version = "mc-1.21.5-8"
+game_versions = "1.21.5,1.21.6,1.21.7,1.21.8"
+
+["1.21.10"]
+java.version = "21"
+display_version = "mc-1.21.9-10"
+game_versions = "1.21.9,1.21.10"
+
+["1.21.11"]
+java.version = "21"
+display_version = "mc-1.21.11"
+game_versions = "1.21.11"
+
+["26.1.2"]
+java.version = "25"
+# fabric-api 0.153+/0.160+ for the 26.x line requires Fabric Loader 0.19.3, and the dev run
+# resolves every fabric-api module as a real mod: on the global 0.18.4 the client aborts mod
+# resolution before it boots. Compile-only elsewhere, so this only ever affects dev runs.
+loader_version = "0.19.3"
+display_version = "mc-26.1.0-2"
+game_versions = "26.1,26.1.1,26.1.2"
+
+["26.2"]
+java.version = "25"
+# fabric-api 0.153+/0.160+ for the 26.x line requires Fabric Loader 0.19.3, and the dev run
+# resolves every fabric-api module as a real mod: on the global 0.18.4 the client aborts mod
+# resolution before it boots. Compile-only elsewhere, so this only ever affects dev runs.
+loader_version = "0.19.3"
+display_version = "26.2"
+game_versions = "26.2"
+
+["26.3"]
+java.version = "25"
+# fabric-api 0.153+/0.160+ for the 26.x line requires Fabric Loader 0.19.3, and the dev run
+# resolves every fabric-api module as a real mod: on the global 0.18.4 the client aborts mod
+# resolution before it boots. Compile-only elsewhere, so this only ever affects dev runs.
+loader_version = "0.19.3"
+display_version = "26.3"
+game_versions = "26.3"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Per project — loader-specific properties.
 # Matched via the default project tag (e.g. "fabric-1.20.1").
@@ -48,6 +110,93 @@ game_versions = "1.20.1"
 # eunomia's own display_version for this variant (eunomia-common coordinate + the
 # derived Modrinth id "fab-<display>-<eunomia.version>"). NOT FMH's display_version.
 eunomia.display_version = "mc-1.20.0-1"
+# Fabric API coordinate for this MC version (networking, keybinds, lifecycle events).
+fabricapi.version = "0.92.2+1.20.1"
+# No `fabricapi.semver`: fabric-api 0.92.x for 1.20.1 predates fabric-client-gametest-api-v1,
+# so this variant stays off the in-game client test matrix by design. See the `fcgt` constant
+# in multiloader-common.gradle.kts.
+
+["fabric-1.21.1"]
+"fabric.minecraft_version" = "1.21.1"
+"fabric.minecraft_version_range" = ">=1.21 <=1.21.1"
+eunomia.display_version = "mc-1.21.0-1"
+fabricapi.version = "0.116.17+1.21.1"
+# No `fabricapi.semver`: fabric-api 0.116.x for 1.21.1 still predates
+# fabric-client-gametest-api-v1 entirely. The effective FCGT floor is 1.21.8 — see the
+# fabric-1.21.4 section below for the second reason, and BuildExtensions.kt for both.
+
+["fabric-1.21.2"]
+"fabric.minecraft_version" = "1.21.2"
+"fabric.minecraft_version_range" = "1.21.2"
+eunomia.display_version = "mc-1.21.2"
+fabricapi.version = "0.106.1+1.21.2"
+# No `fabricapi.semver` - no fabric-client-gametest-api-v1 at this MC version, and below the
+# effective FCGT floor of 1.21.8 besides.
+
+["fabric-1.21.3"]
+"fabric.minecraft_version" = "1.21.3"
+"fabric.minecraft_version_range" = "1.21.3"
+eunomia.display_version = "mc-1.21.3"
+fabricapi.version = "0.114.1+1.21.3"
+# No `fabricapi.semver` - no fabric-client-gametest-api-v1 at this MC version, and below the
+# effective FCGT floor of 1.21.8 besides.
+# 1.21.2 and 1.21.3 are IDENTICAL for FMH's API surface; both variants exist only because
+# eunomia publishes separate coordinates for them.
+
+["fabric-1.21.4"]
+"fabric.minecraft_version" = "1.21.4"
+"fabric.minecraft_version_range" = "1.21.4"
+eunomia.display_version = "mc-1.21.4"
+fabricapi.version = "0.119.4+1.21.4"
+# No `fabricapi.semver`, and NOT because the module is missing - 1.21.4 has it. The FCGT floor is
+# 1.21.8 because 0.119.4 is the newest fabric-api for 1.21.4 and it ships client-gametest 4.1.1,
+# which predates the `fabric.client.gametest.modid` filter: its runner dispatches EVERY mod's
+# `fabric-client-gametest` entrypoints. eunomia ships its own, one of which asserts that eunomia's
+# button is on the options screen - and FMH deliberately replaces that entry with its own (see
+# SlotLockEntryPoint). So a gametest run here fails on eunomia's test before reaching ours, for a
+# reason that is correct behaviour. Verified: 4.2.5 (1.21.8) is the oldest module with the filter.
+
+["fabric-1.21.8"]
+"fabric.minecraft_version" = "1.21.8"
+"fabric.minecraft_version_range" = ">=1.21.5 <=1.21.8"
+eunomia.display_version = "mc-1.21.5-8"
+fabricapi.version = "0.136.1+1.21.8"
+fabricapi.semver = "0.136.1+1.21.8"
+
+["fabric-1.21.10"]
+"fabric.minecraft_version" = "1.21.10"
+"fabric.minecraft_version_range" = ">=1.21.9 <=1.21.10"
+eunomia.display_version = "mc-1.21.9-10"
+fabricapi.version = "0.138.4+1.21.10"
+fabricapi.semver = "0.138.4+1.21.10"
+
+["fabric-1.21.11"]
+"fabric.minecraft_version" = "1.21.11"
+"fabric.minecraft_version_range" = "1.21.11"
+eunomia.display_version = "mc-1.21.11"
+fabricapi.version = "0.141.4+1.21.11"
+fabricapi.semver = "0.141.4+1.21.11"
+
+["fabric-26.1.2"]
+"fabric.minecraft_version" = "26.1.2"
+"fabric.minecraft_version_range" = ">=26.1 <=26.1.2"
+eunomia.display_version = "mc-26.1.0-2"
+fabricapi.version = "0.153.0+26.1.2"
+fabricapi.semver = "0.153.0+26.1.2"
+
+["fabric-26.2"]
+"fabric.minecraft_version" = "26.2"
+"fabric.minecraft_version_range" = "26.2"
+eunomia.display_version = "26.2"
+fabricapi.version = "0.153.0+26.2"
+fabricapi.semver = "0.153.0+26.2"
+
+["fabric-26.3"]
+"fabric.minecraft_version" = "26.3"
+"fabric.minecraft_version_range" = "26.3"
+eunomia.display_version = "26.3"
+fabricapi.version = "0.160.5+26.3"
+fabricapi.semver = "0.160.5+26.3"
 
 ["forge-1.20.1"]
 "forge.version" = "1.20.1-47.3.0"

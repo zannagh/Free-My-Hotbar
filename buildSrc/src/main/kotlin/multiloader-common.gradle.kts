@@ -17,6 +17,14 @@ sc.constants["forge"] = sc.current.project.contains("forge")
 // project tag (e.g. "fabric-1.21.11") already applies the per-project sections.
 sc.properties.tags(sc.current.project.substringAfter('-'))
 
+// `fcgt` activates the fabric-client-gametest-api-v1 in-game smoke test. True only on Fabric
+// variants that pin `fabricapi.semver`, which is the single switch that keeps the FCGT module
+// wiring, the entrypoint, the run task and the gated test sources consistent with each other.
+// Deliberately absent below MC 1.21.8: older fabric-api builds either have no client gametest
+// module at all (<=1.21.3) or ship one without the mod-id filter (1.21.4), which would run every
+// other mod's client gametests in our client too. See stonecutter.properties.toml.
+sc.constants["fcgt"] = hasProperty("fabricapi.semver") && sc.current.project.contains("fabric")
+
 val javaVersion = findProperty("java.version")?.toString() ?: error("No Java version specified")
 val displayVersion = findProperty("display_version")?.toString() ?: error("No display version specified")
 

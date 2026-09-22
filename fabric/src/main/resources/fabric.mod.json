@@ -22,7 +22,8 @@
     ],
     "client": [
       "io.github.zannagh.freemyhotbar.fabric.FreeMyHotbarClientFabric"
-    ]
+    ],
+    "fabric-client-gametest": []
   },
   "mixins": [
     "free-my-hotbar.mixins.json",

@@ -37,6 +37,11 @@ dependencies {
     // these same sources and need the identical compile classpath.
     addEunomiaCompileOnly()
 
+    // fabric-client-gametest-api-v1, on the CLIENT compile classpath of the FCGT-capable Fabric
+    // variants only. This is where the `//? if fcgt` test classes under client/.../smoke live, and
+    // :common has no Fabric API otherwise. No-op everywhere else, including Forge.
+    addFcgtClientCompileOnly()
+
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

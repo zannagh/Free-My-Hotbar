@@ -20,6 +20,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Server pickup enforcement: when a player has locked hotbar slots, keep vanilla's
  * auto-pickup from selecting a locked slot. Uses plain Mixin injections (no MixinExtras) so it
  * compiles against the bare loader classpath.
+ *
+ * <p>The {@code @Shadow} declarations below are deliberately NOT version-gated even though
+ * {@code items} and {@code selected} are public up to 1.21.4 and private from 1.21.5 on. Mixin
+ * 0.8.5 validates exactly three things about a shadow FIELD - that it exists in the target, that
+ * it is not also {@code @Unique}, and that its STATIC modifier matches ({@code Bytecode
+ * .compareFlags(..., ACC_STATIC)}); a {@code @Final} mismatch is a verbose-log warning and access
+ * modifiers are not compared at all. The mixin is merged into {@code Inventory} itself, so the
+ * rewritten field access is legal whatever the target's visibility. All six shadowed members keep
+ * their names unchanged from 1.20.1 through 26.3, which IS the part Mixin hard-fails on.
  */
 @Mixin(Inventory.class)
 public abstract class InventoryMixin {

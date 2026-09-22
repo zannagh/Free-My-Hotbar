@@ -11,6 +11,7 @@ import de.zannagh.eunomia.client.ui.ScreenAccessor;
 import de.zannagh.eunomia.client.ui.ScreenInitializationManager;
 import de.zannagh.eunomia.client.ui.ScreenInitializer;
 import de.zannagh.eunomia.client.ui.ScreenWidgetSink;
+import io.github.zannagh.freemyhotbar.client.ClientScreens;
 import io.github.zannagh.freemyhotbar.client.FreeMyHotbarClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -106,6 +107,6 @@ public final class SlotLockEntryPoint implements ScreenInitializer {
     }
 
     private static void open() {
-        Minecraft.getInstance().setScreen(new SlotLockScreen(FreeMyHotbarClient.config()));
+        ClientScreens.open(Minecraft.getInstance(), new SlotLockScreen(FreeMyHotbarClient.config()));
     }
 }

@@ -50,3 +50,37 @@ tasks.named<Test>("test") {
         events("passed", "skipped", "failed")
     }
 }
+
+// ── In-game client game tests (Tier 2) ───────────────────────────────────────────
+// A SEPARATE test suite, with its own source set (src/clientGametest/java), for the rows that
+// fork `./gradlew :fabric:<variant>:runClientGametest` and boot a real Minecraft client. Keeping
+// them out of the default `test` suite is the whole point: `./gradlew check`/`build` wire only
+// `test`, so neither can ever spawn a client. Run these explicitly via the root `clientGametest`
+// task. See ClientGametestMatrixTest for the variant list and the filtering properties.
+testing {
+    suites {
+        register<JvmTestSuite>("clientGametest") {
+            useJUnitJupiter("6.0.1")
+            dependencies {
+                implementation("org.junit.jupiter:junit-jupiter-params")
+            }
+            targets.configureEach {
+                testTask.configure {
+                    // A row boots a client; the JUnit-level timeout is a backstop behind
+                    // GradleFork's own wall-clock ceiling, not the primary guard.
+                    systemProperty("junit.jupiter.execution.timeout.test.default", "20m")
+                    // Repo root → the rows fork ./gradlew from here (same key the plain suite uses).
+                    systemProperty("smoke.repo.root", rootProject.projectDir.absolutePath)
+                    listOf("gametest.only", "gametest.exclude", "gametest.ceiling.min").forEach { key ->
+                        System.getProperty(key)?.let { systemProperty(key, it) }
+                    }
+                    testLogging {
+                        events("passed", "skipped", "failed")
+                        showStandardStreams = true
+                        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                    }
+                }
+            }
+        }
+    }
+}
