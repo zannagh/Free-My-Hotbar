@@ -61,6 +61,19 @@ tasks.register("smokeTest") {
     dependsOn(":smoke:test")
 }
 
+// In-game client game tests (delegates to the :smoke `clientGametest` suite, which forks
+// `:fabric:<variant>:runClientGametest` once per FCGT-capable variant and boots a real client).
+//
+// DELIBERATELY NOT wired into `check`: `./gradlew build`/`check` must stay a compile+unit gate that
+// never starts Minecraft. This is the CI-invoked entry point instead — see
+// .github/workflows/client-gametest.yml, which runs one variant as a PR gate on a display-capable
+// self-hosted runner and the full matrix nightly.
+tasks.register("clientGametest") {
+    group = "verification"
+    description = "Runs the Fabric in-game client game tests (boots real Minecraft clients)."
+    dependsOn(":smoke:clientGametest")
+}
+
 // Builds every loader variant, collects the shippable jars into staging/, and writes a
 // generated staging/versions.json (loader -> display_version -> [game_versions]) that the
 // publish workflow reads to build its upload matrix. Adding an MC version/loader is a

@@ -151,8 +151,23 @@ fun Project.addEunomiaCoreOnly(configuration: String = "compileOnly") {
 // ── Fabric Client Game Tests (FCGT) ──────────────────────────────────────────────
 // One switch, `fabricapi.semver`, decides everything FCGT on a variant: the `fcgt` Stonecutter
 // constant that compiles the test classes in, the compile dependency below, the entrypoint list
-// injected into fabric.mod.json, and the `runClientGametest` task. Pinned only on Fabric variants
-// from MC 1.21.4 up — older fabric-api lines have no fabric-client-gametest-api-v1 at all.
+// injected into fabric.mod.json, and the `runClientGametest` task.
+//
+// The floor is MC 1.21.8, and it is pinned on Fabric variants only. Two separate reasons stack up
+// to that number, and BOTH have to hold before a new variant may pin `fabricapi.semver`:
+//
+//  1. Below 1.21.4 there is no `fabric-client-gametest-api-v1` module at all (1.20.1 / 1.21.1 /
+//     1.21.2 / 1.21.3), so there is nothing to depend on.
+//  2. 1.21.4 HAS the module but is still excluded: its newest fabric-api (0.119.4) ships
+//     client-gametest 4.1.1, which predates the `fabric.client.gametest.modid` filter and
+//     therefore dispatches EVERY installed mod's `fabric-client-gametest` entrypoints. eunomia —
+//     a required runtime dependency — ships its own, one of which asserts that eunomia's button
+//     sits on the options screen, and FMH deliberately replaces that entry (SlotLockEntryPoint).
+//     A gametest run there fails on eunomia's test, for a reason that is correct behaviour.
+//     4.2.5 (bundled with fabric-api 0.136.1+1.21.8) is the oldest module carrying the filter.
+//
+// So: a variant qualifies only if its fabric-api bundles client-gametest >= 4.2.5. The same
+// reasoning is repeated next to the affected variants in stonecutter.properties.toml.
 
 /** Whether this variant runs in-game client tests (a Fabric variant that pins `fabricapi.semver`). */
 val Project.fcgtEnabled: Boolean

@@ -122,21 +122,24 @@ fabricapi.version = "0.92.2+1.20.1"
 eunomia.display_version = "mc-1.21.0-1"
 fabricapi.version = "0.116.17+1.21.1"
 # No `fabricapi.semver`: fabric-api 0.116.x for 1.21.1 still predates
-# fabric-client-gametest-api-v1. FCGT's floor is 1.21.4.
+# fabric-client-gametest-api-v1 entirely. The effective FCGT floor is 1.21.8 — see the
+# fabric-1.21.4 section below for the second reason, and BuildExtensions.kt for both.
 
 ["fabric-1.21.2"]
 "fabric.minecraft_version" = "1.21.2"
 "fabric.minecraft_version_range" = "1.21.2"
 eunomia.display_version = "mc-1.21.2"
 fabricapi.version = "0.106.1+1.21.2"
-# No `fabricapi.semver` - below the 1.21.4 FCGT floor.
+# No `fabricapi.semver` - no fabric-client-gametest-api-v1 at this MC version, and below the
+# effective FCGT floor of 1.21.8 besides.
 
 ["fabric-1.21.3"]
 "fabric.minecraft_version" = "1.21.3"
 "fabric.minecraft_version_range" = "1.21.3"
 eunomia.display_version = "mc-1.21.3"
 fabricapi.version = "0.114.1+1.21.3"
-# No `fabricapi.semver` - below the 1.21.4 FCGT floor.
+# No `fabricapi.semver` - no fabric-client-gametest-api-v1 at this MC version, and below the
+# effective FCGT floor of 1.21.8 besides.
 # 1.21.2 and 1.21.3 are IDENTICAL for FMH's API surface; both variants exist only because
 # eunomia publishes separate coordinates for them.
 

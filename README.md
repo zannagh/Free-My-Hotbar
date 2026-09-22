@@ -75,11 +75,28 @@ If you like my work and would like to support me, you can do so here:
 
 ## Supported versions
 
-| Minecraft | Loaders |
-| --- | --- |
-| 1.20.1 | Fabric, Forge |
+12 build variants covering 19 Minecraft versions, all from the `main` branch via
+[Stonecutter](https://stonecutter.kikugie.dev/).
 
-More game versions are planned - the project is set up for multi-version builds, so adding one is a configuration change rather than a fork.
+| Minecraft | Loaders | Java |
+| --- | --- | --- |
+| 1.20.1 | Fabric, Forge | 17 |
+| 1.21, 1.21.1 | Fabric | 21 |
+| 1.21.2 | Fabric | 21 |
+| 1.21.3 | Fabric | 21 |
+| 1.21.4 | Fabric | 21 |
+| 1.21.5 - 1.21.8 | Fabric | 21 |
+| 1.21.9, 1.21.10 | Fabric | 21 |
+| 1.21.11 | Fabric | 21 |
+| 26.1, 26.1.1, 26.1.2 | Fabric | 25 |
+| 26.2 | Fabric | 25 |
+| 26.3 | Fabric | 25 |
+
+Classic **Forge** is 1.20.1 only, and that is by design: Forge was superseded by NeoForge from
+1.20.2 on, so there is no newer classic-Forge target to add. NeoForge is not supported.
+
+Every variant requires [eunomia](https://modrinth.com/mod/eunomia) (0.3.14 or newer) at runtime -
+see the note at the top of this page.
 
 ## Community
 
@@ -92,11 +109,21 @@ As mentioned before, feel free to create an issue on the [GitHub repository](htt
 ## Building
 
 ```bash
-./gradlew build       # Build every active loader variant
-./gradlew smokeTest   # Run the plain-JVM JUnit smoke suite
+./gradlew build           # Build every loader variant
+./gradlew smokeTest       # Plain-JVM JUnit smoke suite (no Minecraft)
+./gradlew clientGametest  # In-game Fabric client game tests (boots real clients - slow)
 ```
 
-Java 17 is required. Loader jars land under `fabric/versions/**/build/libs/` and `forge/versions/**/build/libs/`.
+**JDK 21** runs the Gradle build itself. The variants compile against three different toolchains -
+**17** for 1.20.1, **21** for the 1.21.x line and **25** for 26.x - which Gradle provisions
+automatically through the Foojay toolchain resolver, so only the JDK that launches Gradle has to
+be installed.
+
+`build` and `check` never start a Minecraft client. `clientGametest` does: it forks one real client
+per FCGT-capable variant (1.21.8 and newer), needs a display, and takes minutes per variant. See
+`.github/workflows/client-gametest.yml` for how CI runs it.
+
+Loader jars land under `fabric/versions/**/build/libs/` and `forge/versions/**/build/libs/`.
 
 ## Versioning & Releases
 
