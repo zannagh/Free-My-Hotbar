@@ -1,6 +1,7 @@
 package io.github.zannagh.freemyhotbar.mixin.client;
 
 import io.github.zannagh.freemyhotbar.client.LockedSlots;
+import io.github.zannagh.freemyhotbar.slot.GuiInteraction;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
@@ -29,8 +30,30 @@ public abstract class CreativeModeInventoryScreenMixin {
 
     @Inject(method = "slotClicked", at = @At("HEAD"), cancellable = true)
     private void fmh$slotClicked(Slot slot, int slotId, int button, ClickType type, CallbackInfo ci) {
-        if (LockedSlots.onSlotClicked(slot, button, type)) {
+        if (LockedSlots.onSlotClicked(slot, button, fmh$kindOf(type))) {
             ci.cancel();
         }
+    }
+
+    /**
+     * Maps the game's click type onto the Minecraft-free {@link GuiInteraction}.
+     *
+     * <p>Deliberately repeated in both screen mixins rather than shared: this is the boundary the
+     * vanilla enum is confined to, and a mixin cannot hold a shared static without putting that
+     * class back on the mod side of the line.
+     */
+    private static GuiInteraction fmh$kindOf(ClickType type) {
+        if (type == null) {
+            return null;
+        }
+        return switch (type) {
+            case PICKUP -> GuiInteraction.PICKUP;
+            case QUICK_MOVE -> GuiInteraction.QUICK_MOVE;
+            case SWAP -> GuiInteraction.SWAP;
+            case CLONE -> GuiInteraction.CLONE;
+            case THROW -> GuiInteraction.THROW;
+            case QUICK_CRAFT -> GuiInteraction.QUICK_CRAFT;
+            case PICKUP_ALL -> GuiInteraction.PICKUP_ALL;
+        };
     }
 }

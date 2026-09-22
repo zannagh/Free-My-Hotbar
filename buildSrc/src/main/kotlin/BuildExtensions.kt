@@ -147,3 +147,63 @@ fun Project.addEunomiaCoreOnly(configuration: String = "compileOnly") {
     val version = eunomiaVersionGlobal ?: return
     dependencies.add(configuration, "de.zannagh.eunomia:eunomia-core:$version")
 }
+
+// ── Fabric Client Game Tests (FCGT) ──────────────────────────────────────────────
+// One switch, `fabricapi.semver`, decides everything FCGT on a variant: the `fcgt` Stonecutter
+// constant that compiles the test classes in, the compile dependency below, the entrypoint list
+// injected into fabric.mod.json, and the `runClientGametest` task. Pinned only on Fabric variants
+// from MC 1.21.4 up — older fabric-api lines have no fabric-client-gametest-api-v1 at all.
+
+/** Whether this variant runs in-game client tests (a Fabric variant that pins `fabricapi.semver`). */
+val Project.fcgtEnabled: Boolean
+    get() = prop("fabricapi.semver") != null && stonecutterBuild.current.project.contains("fabric")
+
+/**
+ * Adds `fabric-client-gametest-api-v1` to the CLIENT compile classpath of an FCGT-capable variant.
+ *
+ * <p>Needed on `:common`, which compiles the test classes but has no Fabric API on its classpath
+ * (only `fabric-loader`). The loader projects already pull the module in transitively: they depend
+ * on the `fabric-api` umbrella, whose POM lists every module including this one.
+ *
+ * The version is resolved through Loom's `fabricApi.module(...)` rather than hardcoded — the module
+ * has its own semver (5.x/6.x) that does not track the umbrella's.
+ */
+fun Project.addFcgtClientCompileOnly() {
+    val semver = prop("fabricapi.semver") ?: return
+    if (!fcgtEnabled) {
+        return
+    }
+    val fabricApi = extensions.getByType(net.fabricmc.loom.api.fabricapi.FabricApiExtension::class.java)
+    val configuration = if (isDeobf) "clientCompileOnly" else "modClientCompileOnly"
+    dependencies.add(configuration, fabricApi.module("fabric-client-gametest-api-v1", semver))
+}
+
+/**
+ * Fills fabric.mod.json's `fabric-client-gametest` entrypoint list as the resource is copied.
+ *
+ * <p>A `${...}` placeholder cannot be used here: the shipped file has to stay valid JSON on its
+ * own (the metadata smoke suite parses it straight off disk), and a bare placeholder in array
+ * position is not. So the file ships the honest non-FCGT value — an empty list — and this rewrites
+ * that one line on the variants that do run client game tests. A variant with no entries is left
+ * exactly as shipped.
+ */
+class InjectFcgtEntrypointsAction(private val entries: List<String>) : Action<FileCopyDetails>, Serializable {
+    override fun execute(details: FileCopyDetails) {
+        if (entries.isEmpty()) {
+            return
+        }
+        details.filter { line: String ->
+            if (!line.contains("\"fabric-client-gametest\"")) {
+                line
+            } else {
+                val indent = line.takeWhile { it == ' ' }
+                val comma = if (line.trimEnd().endsWith(",")) "," else ""
+                entries.joinToString(
+                    separator = ",\n$indent  ",
+                    prefix = "$indent\"fabric-client-gametest\": [\n$indent  ",
+                    postfix = "\n$indent]$comma"
+                ) { "\"$it\"" }
+            }
+        }
+    }
+}

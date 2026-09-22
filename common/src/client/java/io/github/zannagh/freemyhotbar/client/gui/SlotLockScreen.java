@@ -168,6 +168,11 @@ public final class SlotLockScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Up to 1.20.1 `Screen.render` draws nothing behind the widgets, so the panorama/dirt
+        // background has to be asked for here. From 1.21 on `Screen.render` calls
+        // `renderBackground` itself (with the full mouse/tick signature), and repeating it would
+        // only paint the same background twice.
+        //? if < 1.21
         renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(font, title, width / 2, 20, 0xFFFFFF);

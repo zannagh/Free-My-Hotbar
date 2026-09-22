@@ -13,6 +13,12 @@ val commonPath = commonNode.hierarchy.toString()
 // Ensure common project is fully evaluated before accessing its source sets
 evaluationDependsOn(commonPath)
 
+// Same for :core, whose `main` source set the jar task below reads at configuration time.
+// Gradle only evaluates it implicitly when something else in the build already pulled it in;
+// under configuration-on-demand (`./gradlew :fabric:<variant>:build`) nothing does, and the
+// jar task then fails with "Extension of type 'SourceSetContainer' does not exist".
+evaluationDependsOn(":core")
+
 val commonProject = project(commonPath)
 val commonSourceSets = commonProject.extensions.getByType(SourceSetContainer::class.java)
 

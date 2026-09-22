@@ -9,7 +9,6 @@ import io.github.zannagh.freemyhotbar.fallback.EvictionTracker;
 import io.github.zannagh.freemyhotbar.fallback.LockedSlotBaseline;
 import io.github.zannagh.freemyhotbar.slot.SlotBlock;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.Input;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -194,29 +193,19 @@ public final class HotbarEvictor {
 
     /** Whether a container click is both meaningful and safe to send on this tick. */
     private static boolean canClick(Minecraft minecraft, LocalPlayer player) {
-        if (minecraft.gameMode == null || minecraft.screen != null) {
+        if (minecraft.gameMode == null || ClientScreens.anyOpen(minecraft)) {
             return false;
         }
         // Slot indices below are InventoryMenu's; never click while some other menu is the target.
         if (player.containerMenu != player.inventoryMenu) {
             return false;
         }
+        PlayerInputAccess input = PlayerInputAccess.of(player);
         return EvictionPolicy.clickGateOpen(
                 FreeMyHotbarClient.config().evictImmediately(),
-                player.isSprinting(),
-                player.isShiftKeyDown(),
-                hasMovementInput(player));
-    }
-
-    private static boolean hasMovementInput(LocalPlayer player) {
-        Input input = player.input;
-        if (input == null) {
-            return false;
-        }
-        return input.forwardImpulse != 0.0F
-                || input.leftImpulse != 0.0F
-                || input.jumping
-                || input.shiftKeyDown;
+                input.sprinting(),
+                input.sneaking(),
+                input.hasMovementInput());
     }
 
     private static void flush(Minecraft minecraft, LocalPlayer player, FallbackMode mode) {
@@ -243,7 +232,7 @@ public final class HotbarEvictor {
                 continue;
             }
             int signature = signature(stack);
-            EvictionAction action = EvictionPolicy.decide(mode, EvictionTargets.canRelocate(inventory, stack));
+            EvictionAction action = EvictionPolicy.decide(mode, EvictionTargets.canRelocate(player, stack));
             if (action == EvictionAction.DROP && !TRACKER.mayDrop(slot, signature)) {
                 noticeDropLimit(player, slot);
                 continue;
@@ -269,8 +258,13 @@ public final class HotbarEvictor {
             return;
         }
         dropLimitNoticeSent = true;
+        // See ServerModNotice: 26.1 split the chat/action-bar flag into two methods.
+        //? if >= 26.1 {
+        /*player.sendSystemMessage(Component.translatable("chat.free-my-hotbar.drop_limit", slot + 1));
+        *///?} else {
         player.displayClientMessage(
                 Component.translatable("chat.free-my-hotbar.drop_limit", slot + 1), false);
+        //?}
     }
 
     /**

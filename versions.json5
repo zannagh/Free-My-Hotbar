@@ -2,13 +2,43 @@
   "$schema": "https://stonecutter.kikugie.dev/settings-schema/latest.json",
   vcs: "fabric-1.20.1",
   branches: {
+    // Shared sources: every variant listed here is chiselled from the SAME `common/` tree, so
+    // every Stonecutter block added there is evaluated on forge-1.20.1 too and needs a working
+    // else-branch, not just a `>= x` arm.
+    //
+    // The 26.x variants build against deobfuscated (unmapped) Minecraft jars. That is wired by
+    // `Project.isDeobf` in buildSrc (mcVersion starts with "26."), which picks the
+    // loom-deobfuscated plugin and the plain `implementation` mod configuration - so unlike
+    // armor-hider no per-variant `build.deobfuscated.gradle.kts` override is needed here.
     "common": [
       "fabric-1.20.1:1.20.1",
+      "fabric-1.21.1:1.21.1",
+      "fabric-1.21.2:1.21.2",
+      "fabric-1.21.3:1.21.3",
+      "fabric-1.21.4:1.21.4",
+      "fabric-1.21.8:1.21.8",
+      "fabric-1.21.10:1.21.10",
+      "fabric-1.21.11:1.21.11",
+      "fabric-26.1.2:26.1.2",
+      "fabric-26.2:26.2",
+      "fabric-26.3:26.3",
       "forge-1.20.1:1.20.1"
     ],
     "fabric": [
-      "fabric-1.20.1:1.20.1"
+      "fabric-1.20.1:1.20.1",
+      "fabric-1.21.1:1.21.1",
+      "fabric-1.21.2:1.21.2",
+      "fabric-1.21.3:1.21.3",
+      "fabric-1.21.4:1.21.4",
+      "fabric-1.21.8:1.21.8",
+      "fabric-1.21.10:1.21.10",
+      "fabric-1.21.11:1.21.11",
+      "fabric-26.1.2:26.1.2",
+      "fabric-26.2:26.2",
+      "fabric-26.3:26.3"
     ],
+    // Classic Forge stays a single 1.20.1 variant: the loader was superseded by NeoForge from
+    // 1.20.2 on, so there is nothing newer to add here.
     "forge": [
       "forge-1.20.1:1.20.1"
     ],

@@ -5,7 +5,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import io.github.zannagh.freemyhotbar.client.gui.SlotLockScreen;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Static holder for the mod's client {@link KeyMapping}. The binding is exposed here but registered
@@ -16,12 +15,28 @@ public final class FreeMyHotbarKeys {
     /** Translation key for the keybind name. */
     public static final String KEY_NAME = "key.free-my-hotbar.open_screen";
 
-    /** Category translation key for the keybind. */
+    /**
+     * The controls-screen category the keybind is listed under.
+     *
+     * <p>Gated rather than replaced: 1.21.9 did not rename the constructor argument, it changed
+     * its TYPE - the translation key gave way to a {@code KeyMapping.Category} record holding the
+     * same id. Naming the category here keeps the constructor call itself invariant.
+     */
+    //? if >= 1.21.9 {
+    /*public static final KeyMapping.Category KEY_CATEGORY = KeyMapping.Category.MISC;
+    *///?} else {
     public static final String KEY_CATEGORY = "key.categories.misc";
+    //?}
 
-    /** The keybind opening the slot-lock screen; default is the H key. */
+    /**
+     * The keybind opening the slot-lock screen; default is the H key.
+     *
+     * <p>The key code comes from {@code InputConstants} rather than from LWJGL: the two constants
+     * are the same number, but 26.3 dropped LWJGL from the mod compile classpath, while
+     * {@code InputConstants.KEY_H} is present unchanged across the whole supported span.
+     */
     public static final KeyMapping OPEN_SCREEN = new KeyMapping(
-            KEY_NAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, KEY_CATEGORY);
+            KEY_NAME, InputConstants.Type.KEYSYM, InputConstants.KEY_H, KEY_CATEGORY);
 
     private FreeMyHotbarKeys() {
     }
@@ -29,7 +44,7 @@ public final class FreeMyHotbarKeys {
     /** Opens the slot-lock screen for the current client instance. */
     public static void openScreen() {
         Minecraft minecraft = Minecraft.getInstance();
-        minecraft.setScreen(new SlotLockScreen(FreeMyHotbarClient.config()));
+        ClientScreens.open(minecraft, new SlotLockScreen(FreeMyHotbarClient.config()));
     }
 
     /**
